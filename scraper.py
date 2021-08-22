@@ -2,13 +2,14 @@
 
 import requests
 import json
+import threading
 from bs4 import BeautifulSoup
 
 
-class Scraper:
+class Scraper(threading.Thread):
 
     def __init__(self):
-        pass
+        super().__init__()
 
     def get_page_data(self, link):
         req = requests.get(link).text
@@ -54,6 +55,19 @@ class Scraper:
             salTo = int("".join(filter(str.isdigit, sal_s[1])))
             salAvg = (salFrom + salTo) / 2
         return salFrom, salTo, salAvg
+
+    def run(self):
+        link = self.build_request_link(['linux'])
+        try:
+            no_of_ads = self.get_number_of_ads(self.get_job_data(link))
+            link = self.build_request_link(['python'], no_of_ads)
+        except TypeError:
+            pass
+        jobs = self.get_job_data(link)
+        ref_jobs = self.refine_job_data(jobs)
+        for job in ref_jobs:
+            print(job)
+            print()
 
 
 class CVScraper(Scraper):
@@ -229,7 +243,7 @@ class CVmarketScraper(Scraper):
                 job_data['salaryFrom'], job_data['salaryTo'], job_data['salaryAvg'] = self.count_salary(salary_str)
             except AttributeError:
                 job_data['salaryFrom'] = job_data['salaryTo'] = job_data['salaryAvg'] = 0
-            job_data['url'] = job.find(class_="f_job_title main_job_link limited-lines")['href']
+            job_data['url'] = self.base_link + job.find(class_="f_job_title main_job_link limited-lines")['href']
             jobs.append(job_data)
         return jobs
 
