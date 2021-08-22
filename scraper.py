@@ -32,6 +32,14 @@ class Scraper:
         request_link += self.page_size_req + str(no_of_jobs)
         return request_link
 
+    def get_number_of_ads(self, page, f_class, s_class):
+        soup = BeautifulSoup(page, 'lxml')
+        try:
+            no_of_pages = int(soup.find(class_=f_class).find_all(s_class)[-1].text)
+        except AttributeError:
+            no_of_pages = 1
+        return no_of_pages
+
     def count_salary(self, salary_string):
         salFrom = salTo = salAvg = 0
         if "nuo" in salary_string.lower():
@@ -89,21 +97,15 @@ class CVbankasScraper(Scraper):
         self.base_search_link = "https://www.cvbankas.lt/?"
         self.key_word_req = "&keyw="
         self.no_of_pages_req = "&page="
-
-    def get_number_of_ads(self, page):
-        soup = BeautifulSoup(page, 'lxml')
-        try:
-            no_of_pages = int(soup.find(class_="pages_ul_inner").find_all('a')[-1].text)
-        except AttributeError:
-            no_of_pages = 1
-        return no_of_pages
+        self.page_line_f_class = "pages_ul_inner"
+        self.page_line_s_class = "a"
 
     def build_request_link(self, keywords, no_of_pages=1):
         links = []
         for keyword in keywords:
             link = self.base_search_link + self.key_word_req + keyword
             links.append(link)
-            no_of_pages = self.get_number_of_ads(self.get_page_data(link))
+            no_of_pages = self.get_number_of_ads(self.get_page_data(link), self.page_line_f_class, self.page_line_s_class)
             for i in range (2, no_of_pages + 1):
                 page_link = link + self.no_of_pages_req + str(i)
                 links.append(page_link)
@@ -134,6 +136,7 @@ class CVbankasScraper(Scraper):
             except AttributeError:
                 job_data['salaryFrom'] = job_data['salaryTo'] = job_data['salaryAvg'] = 0
             job_data['url'] = job['href']
+            jobs.append(job_data)
         return jobs
 
 
@@ -239,22 +242,15 @@ class GeraPraktikaScraper(Scraper):
         self.base_search_link = "https://www.gerapraktika.lt/praktikos-skelbimai/p0?"
         self.key_word_req = ";title="
         self.no_of_pages_req = "/p"
-
-
-    def get_number_of_ads(self, page):
-        soup = BeautifulSoup(page, 'lxml')
-        try:
-            no_of_pages = int(soup.find(class_="pager").find_all(class_="invisible_pager_button")[-1].text)
-        except AttributeError:
-            no_of_pages = 1
-        return no_of_pages
+        self.page_line_f_class = "pager"
+        self.page_line_s_class = "invisible_pager_button"
 
     def build_request_link(self, keywords, no_of_pages=1):
         links = []
         for keyword in keywords:
             link = self.base_search_link + self.key_word_req + keyword
             links.append(link)
-            no_of_pages = self.get_number_of_ads(self.get_page_data(link))
+            no_of_pages = self.get_number_of_ads(self.get_page_data(link), self.page_line_f_class, self.page_line_s_class)
             for i in range (2, no_of_pages + 1):
                 page_tag = f"/p{i*20-20}?"
                 page_link = link.replace("/p0?", page_tag)
