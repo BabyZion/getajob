@@ -219,7 +219,7 @@ class CVmarketScraper(Scraper):
             job_data = {}
             job_data['title'] = job.find(class_="f_job_title main_job_link limited-lines").text
             job_data['company'] = job.find(class_="f_job_company").text
-            job_data['city'] = job.find(class_="f_job_city").text
+            job_data['city'] = job.find(class_="f_job_city").text.strip()
             job_data['tags'] = None
             try:
                 salary_str = job.find(class_="f_job_salary").text
@@ -285,4 +285,3 @@ class GeraPraktikaScraper(Scraper):
             job_data['url'] = self.base_link + job.find(class_="company_title")['href']
             jobs.append(job_data)
         return jobs
-        
