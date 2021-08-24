@@ -57,7 +57,7 @@ class Scraper(threading.Thread):
         return salFrom, salTo, salAvg
 
     def run(self):
-        link = self.build_request_link(['linux'])
+        link = self.build_request_link(['python'])
         try:
             no_of_ads = self.get_number_of_ads(self.get_job_data(link))
             link = self.build_request_link(['python'], no_of_ads)
@@ -66,9 +66,11 @@ class Scraper(threading.Thread):
         jobs = self.get_job_data(link)
         ref_jobs = self.refine_job_data(jobs)
         for job in ref_jobs:
+            job_ad_data = self.refine_job_ad_data(job['url'])
+            job.update(job_ad_data)
+        for job in ref_jobs:
             print(job)
             print()
-
 
 class CVScraper(Scraper):
     
@@ -99,9 +101,64 @@ class CVScraper(Scraper):
     def refine_job_ad_data(self, link):
         req = self.get_page_data(link)
         soup = BeautifulSoup(req, 'lxml')
-        description = soup.find(class_="content job-description")
-        # To be implemented...
+        email_k_words = ('email', 'e-mail', 'el. paštas')
+        phone_k_words = ('phone', 'telefonas')
+        address_k_words = ('address', 'adresas')
+        link_k_words = ('tinklalapio adresas', 'link')
+        salary_k_words = ('salary', 'atlyginimas')
+        remote_k_words = ('remote', 'nuotolinis')
+        job_data = {}
+        try:
+            details_contact, details_job = soup.find_all(class_="details")
+            details_contact = details_contact.find_all(class_="details-item")
+            for detail in details_contact:
+                detail_h6 = str(detail.h6).lower()
+                for k_word in email_k_words:
+                    if k_word in detail_h6:
+                        mail_fnc = str(detail.p.script).split("makeMailTrackLink")[1].split(";")[0]
+                        for ch in ("()' "):
+                            mail_fnc = mail_fnc.replace(ch, "")
+                        mail_fnc = mail_fnc.split(',')
+                        mail = mail_fnc[0] + "@" + mail_fnc[1]
+                        job_data['email'] = mail
+                        break
+                for k_word in phone_k_words:
+                    if k_word in detail_h6:
+                        phone_no = str(detail.p.script).split("makePhoneTrackLink")[1].split(",")[1].replace("'", '').strip()
+                        job_data['phone_no'] = phone_no
+                        break
+                for k_word in address_k_words:
+                    if k_word in detail_h6:
+                        address = str(detail.p).replace("<p>", "").replace("</p>", "")
+                        job_data['address'] = address
+                        break
+                for k_word in link_k_words:
+                    if k_word in detail_h6:
+                        job_link = detail.p.a['href']
+                        job_data['link'] = job_link
+                        break
+        except ValueError:
+            details_job = soup.find(class_="details")
 
+        for detail in details_job:
+            detail_h6 = str(detail.find("h6")).lower()
+            for k_word in salary_k_words:
+                if k_word in detail_h6:
+                    job_data['salaryType'] = None
+                    if "gross" in detail_h6 or "bruto" in detail_h6:
+                        job_data['salaryType'] = 'gross'
+                    if "net" in detail_h6:
+                        job_data['salaryType'] = 'net'
+                    break
+            for k_word in remote_k_words:
+                if k_word in detail_h6:
+                    remote_detail = str(detail.p).lower()
+                    if 'yes' in remote_detail or 'taip' in remote_detail:
+                        job_data['remote'] = True
+                    if 'no' in remote_detail or 'ne' in remote_detail:
+                        job_data['remote'] = False
+        return job_data
+        
 
 class CVbankasScraper(Scraper):
     
@@ -153,6 +210,12 @@ class CVbankasScraper(Scraper):
             jobs.append(job_data)
         return jobs
 
+    def refine_job_ad_data(self, link):
+        req = self.get_page_data(link)
+        soup = BeautifulSoup(req, 'lxml')
+        description = soup.find(class_="content job-description")
+        # To be implemented...
+
 
 class CVonlineScraper(Scraper):
     
@@ -190,6 +253,12 @@ class CVonlineScraper(Scraper):
         req = self.get_page_data(link)
         soup = BeautifulSoup(req, 'lxml')
         description = soup.find(class_="react-tabs__tab-panel react-tabs__tab-panel--selected")
+        # To be implemented...
+
+    def refine_job_ad_data(self, link):
+        req = self.get_page_data(link)
+        soup = BeautifulSoup(req, 'lxml')
+        description = soup.find(class_="content job-description")
         # To be implemented...
 
 
@@ -247,6 +316,12 @@ class CVmarketScraper(Scraper):
             jobs.append(job_data)
         return jobs
 
+    def refine_job_ad_data(self, link):
+        req = self.get_page_data(link)
+        soup = BeautifulSoup(req, 'lxml')
+        description = soup.find(class_="content job-description")
+        # To be implemented...
+
 
 class GeraPraktikaScraper(Scraper):
     
@@ -295,3 +370,9 @@ class GeraPraktikaScraper(Scraper):
             job_data['url'] = self.base_link + job.find(class_="company_title")['href']
             jobs.append(job_data)
         return jobs
+
+    def refine_job_ad_data(self, link):
+        req = self.get_page_data(link)
+        soup = BeautifulSoup(req, 'lxml')
+        description = soup.find(class_="content job-description")
+        # To be implemented...
