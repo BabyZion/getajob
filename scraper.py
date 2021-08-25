@@ -36,7 +36,8 @@ class Scraper(threading.Thread):
     def get_number_of_ads(self, page, f_class, s_class):
         soup = BeautifulSoup(page, 'lxml')
         try:
-            no_of_pages = int(soup.find(class_=f_class).find_all(s_class)[-1].text)
+
+            no_of_pages = int(soup.find(class_=f_class).find_all(class_=s_class)[-1].text)
         except AttributeError:
             no_of_pages = 1
         return no_of_pages
@@ -418,4 +419,13 @@ class GeraPraktikaScraper(Scraper):
         req = self.get_page_data(link)
         soup = BeautifulSoup(req, 'lxml')
         description = soup.find(class_="content job-description")
-        # To be implemented...
+        job_data = {}
+        job_data['address'] = str(soup.find(class_="box_info").find_all('div')[1].text)
+        job_data['email'] = str(soup.find(class_="box_info").find_all('div')[2].text)
+        phone_no_str = str(soup.find(class_="box_info").find_all('div')[3].text)
+        job_data['phone_no'] = "".join(filter(str.isdigit, phone_no_str))
+        try:
+            job_data['link'] = str(soup.find(class_="box_info").find_all('div')[4].text)
+        except IndexError:
+            job_data['link'] = None
+        return job_data
