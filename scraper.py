@@ -56,11 +56,19 @@ class Scraper(threading.Thread):
             salAvg = (salFrom + salTo) / 2
         return salFrom, salTo, salAvg
 
+    def gross_or_net(self, type_str):
+        j_type = None
+        if "gross" in type_str or "bruto" in type_str:
+            j_type = 'gross'
+        if "net" in type_str:
+            j_type = 'net'
+        return j_type
+
     def run(self):
-        link = self.build_request_link(['python'])
+        link = self.build_request_link(['linux'])
         try:
             no_of_ads = self.get_number_of_ads(self.get_job_data(link))
-            link = self.build_request_link(['python'], no_of_ads)
+            link = self.build_request_link(['linux'], no_of_ads)
         except TypeError:
             pass
         jobs = self.get_job_data(link)
@@ -68,9 +76,9 @@ class Scraper(threading.Thread):
         for job in ref_jobs:
             job_ad_data = self.refine_job_ad_data(job['url'])
             job.update(job_ad_data)
-        for job in ref_jobs:
             print(job)
             print()
+
 
 class CVScraper(Scraper):
     
@@ -139,16 +147,11 @@ class CVScraper(Scraper):
                         break
         except ValueError:
             details_job = soup.find(class_="details")
-
         for detail in details_job:
             detail_h6 = str(detail.find("h6")).lower()
             for k_word in salary_k_words:
                 if k_word in detail_h6:
-                    job_data['salaryType'] = None
-                    if "gross" in detail_h6 or "bruto" in detail_h6:
-                        job_data['salaryType'] = 'gross'
-                    if "net" in detail_h6:
-                        job_data['salaryType'] = 'net'
+                    job_data['salaryType'] = self.gross_or_net(detail_h6)
                     break
             for k_word in remote_k_words:
                 if k_word in detail_h6:
@@ -252,15 +255,21 @@ class CVonlineScraper(Scraper):
     def refine_job_ad_data(self, link):
         req = self.get_page_data(link)
         soup = BeautifulSoup(req, 'lxml')
-        description = soup.find(class_="react-tabs__tab-panel react-tabs__tab-panel--selected")
-        # To be implemented...
-
-    def refine_job_ad_data(self, link):
-        req = self.get_page_data(link)
-        soup = BeautifulSoup(req, 'lxml')
         description = soup.find(class_="content job-description")
-        # To be implemented...
-
+        soup = str(soup.find(type="application/json"))
+        soup = soup.replace('</script>', '')
+        soup = soup.replace('<script id="__NEXT_DATA__" type="application/json">', '')
+        soup = json.loads(soup)
+        job_data = {}
+        id_ = link.split('/')[5]
+        salType_str = str(soup['props']['initialReduxState']['intl']['messages']['vacancy.highlights.form.salary'])
+        job_data['salaryType'] = self.gross_or_net(salType_str)
+        job_data['email'] = str(soup['props']['initialReduxState']['publicVacancies'][id_]['contacts']['email'])
+        job_data['phone_no'] = str(soup['props']['initialReduxState']['publicVacancies'][id_]['contacts']['phone'])
+        job_data['remote'] = bool(soup['props']['initialReduxState']['publicVacancies'][id_]['highlights']['remoteWork'])
+        job_data['address'] = str(soup['props']['initialReduxState']['publicVacancies'][id_]['highlights']['address'])
+        job_data['link'] = soup['props']['initialReduxState']['publicVacancies'][id_]['employer']['webpageUrl']
+        return job_data
 
 class CVmarketScraper(Scraper):
 
