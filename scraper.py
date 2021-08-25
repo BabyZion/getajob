@@ -55,23 +55,23 @@ class Scraper(threading.Thread):
             salTo = int("".join(filter(str.isdigit, sal_s[1])))
             salAvg = (salFrom + salTo) / 2
         else:
-            salFrom = salTo = salAvg = int(salary_string)
+            salFrom = salTo = salAvg = int("".join(filter(str.isdigit, salary_string)))
         return salFrom, salTo, salAvg
 
     def gross_or_net(self, type_str):
         type_str = str(type_str).lower()
         j_type = None
-        if "gross" in type_str or "bruto" in type_str or "mokes" in type_str:
+        if "gross" in type_str or "bruto" in type_str or "mokes" in type_str or "before" in type_str:
             j_type = 'gross'
-        if "net" in type_str or "rank" in type_str:
+        if "net" in type_str or "rank" in type_str or "after" in type_str:
             j_type = 'net'
         return j_type
 
     def run(self):
-        link = self.build_request_link(['network'])
+        link = self.build_request_link([''])
         try:
             no_of_ads = self.get_number_of_ads(self.get_job_data(link))
-            link = self.build_request_link(['network'], no_of_ads)
+            link = self.build_request_link([''], no_of_ads)
         except TypeError:
             pass
         jobs = self.get_job_data(link)
@@ -352,7 +352,18 @@ class CVmarketScraper(Scraper):
         req = self.get_page_data(link)
         soup = BeautifulSoup(req, 'lxml')
         description = soup.find(class_="content job-description")
-        # To be implemented...
+        try:
+            details = str(soup.find(class_="job-details-table").find_all(class_="jobdetails_value"))
+            job_data = {}
+            job_data['salaryType'] = self.gross_or_net(details)
+        except AttributeError:
+            job_data['salaryType'] = None
+        rem = soup.find(class_="label label-yellow")
+        if rem:
+            job_data['remote'] = True
+        else:
+            job_data['remote'] = False
+        return job_data
 
 
 class GeraPraktikaScraper(Scraper):
