@@ -10,6 +10,14 @@ class Scraper(threading.Thread):
 
     def __init__(self):
         super().__init__()
+        self.description_keyword_map = {
+            100:(('python'), ('linux', 'unix'), ('junior'), ('1-2 years', '2 years', '1 year')),
+            50:(('network', 'server'), 'data', 'comptia', 'docker', ('tcp', 'dns')),
+            25:(('sql', 'database'), 'git', 'bash', ('security', 'developer', 'QA', 'automation', 'quality', 'test')),
+            10:('c programming', 'english', 'agile', 'jira', 'embedded', ('ubuntu', 'debian')),
+            -100:(('c#', '.net'), 'php', 'javascript', '3+ years', '3 years'),
+            -300:('windows', 'senior', '5+ years', '5 years')
+        }
 
     def get_page_data(self, link):
         req = requests.get(link).text
@@ -44,6 +52,8 @@ class Scraper(threading.Thread):
 
     def count_salary(self, salary_string):
         salFrom = salTo = salAvg = 0
+        if not salary_string:
+            return salFrom, salTo, salAvg
         if "nuo" in salary_string.lower():
             sal_s = salary_string.split()
             salFrom = int("".join(filter(str.isdigit, sal_s[1])))
@@ -68,6 +78,22 @@ class Scraper(threading.Thread):
             j_type = 'net'
         return j_type
 
+    def calculate_job_description_score(self, description):
+        score = 0
+        if description:
+            description = description.lower()
+            for points, keywords in self.description_keyword_map.items():
+                for keyword in keywords:
+                    if isinstance(keyword, tuple):
+                        for k in keyword:
+                            if k in description:
+                                score += points
+                                break
+                    else:
+                        if keyword in description:
+                            score += points
+        return score
+
     def run(self):
         link = self.build_request_link([''])
         try:
@@ -80,7 +106,7 @@ class Scraper(threading.Thread):
         for job in ref_jobs:
             job_ad_data = self.refine_job_ad_data(job['url'])
             job.update(job_ad_data)
-            print(job)
+            print(job['url'], job['description_score'])
             print()
 
 
@@ -164,6 +190,8 @@ class CVScraper(Scraper):
                         job_data['remote'] = True
                     if 'no' in remote_detail or 'ne' in remote_detail:
                         job_data['remote'] = False
+        description = str(soup.find(class_='content job-description'))
+        job_data['description_score'] = self.calculate_job_description_score(description)
         return job_data
         
 
@@ -220,7 +248,6 @@ class CVbankasScraper(Scraper):
     def refine_job_ad_data(self, link):
         req = self.get_page_data(link)
         soup = BeautifulSoup(req, 'lxml')
-        description = soup.find(class_="content job-description")
         job_data = {}
         try:
             salType_str = soup.find(class_="salary_calculation").text
@@ -241,6 +268,8 @@ class CVbankasScraper(Scraper):
             job_data['address'] = str(soup.find(class_="partners_company_info_additional_info_location_url").text)
         except AttributeError:
             job_data['address'] = None
+        description = str(soup.find(itemprop="description"))
+        job_data['description_score'] = self.calculate_job_description_score(description)
         return job_data
 
 
@@ -279,7 +308,6 @@ class CVonlineScraper(Scraper):
     def refine_job_ad_data(self, link):
         req = self.get_page_data(link)
         soup = BeautifulSoup(req, 'lxml')
-        description = soup.find(class_="content job-description")
         soup = str(soup.find(type="application/json"))
         soup = soup.replace('</script>', '')
         soup = soup.replace('<script id="__NEXT_DATA__" type="application/json">', '')
@@ -293,7 +321,16 @@ class CVonlineScraper(Scraper):
         job_data['remote'] = bool(soup['props']['initialReduxState']['publicVacancies'][id_]['highlights']['remoteWork'])
         job_data['address'] = str(soup['props']['initialReduxState']['publicVacancies'][id_]['highlights']['address'])
         job_data['link'] = soup['props']['initialReduxState']['publicVacancies'][id_]['employer']['webpageUrl']
+        skills_data = soup['props']['initialReduxState']['publicVacancies'][id_]['skills']
+        description = ''
+        for skill in skills_data:
+            description += f"{skill['value']}, "
+        keyword_data = soup['props']['initialReduxState']['publicVacancies'][id_]['settings']['keywords']
+        for k_word in keyword_data:
+            description += f"{k_word['value']}, "
+        job_data['description_score'] = self.calculate_job_description_score(description)
         return job_data
+
 
 class CVmarketScraper(Scraper):
 
@@ -352,10 +389,9 @@ class CVmarketScraper(Scraper):
     def refine_job_ad_data(self, link):
         req = self.get_page_data(link)
         soup = BeautifulSoup(req, 'lxml')
-        description = soup.find(class_="content job-description")
+        job_data = {}
         try:
             details = str(soup.find(class_="job-details-table").find_all(class_="jobdetails_value"))
-            job_data = {}
             job_data['salaryType'] = self.gross_or_net(details)
         except AttributeError:
             job_data['salaryType'] = None
@@ -364,6 +400,8 @@ class CVmarketScraper(Scraper):
             job_data['remote'] = True
         else:
             job_data['remote'] = False
+        description = str(soup.find(class_="col-md-8"))
+        job_data['description_score'] = self.calculate_job_description_score(description)
         return job_data
 
 
@@ -428,4 +466,6 @@ class GeraPraktikaScraper(Scraper):
             job_data['link'] = str(soup.find(class_="box_info").find_all('div')[4].text)
         except IndexError:
             job_data['link'] = None
+        description = str(soup.find(class_="company_description"))
+        job_data['description_score'] = self.calculate_job_description_score(description)
         return job_data
