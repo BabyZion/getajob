@@ -4,6 +4,7 @@ import requests
 import json
 import threading
 from bs4 import BeautifulSoup
+from locator import Locator
 
 
 class Scraper(threading.Thread):
@@ -18,6 +19,8 @@ class Scraper(threading.Thread):
             -100:(('c#', '.net'), 'php', 'javascript', '3+ years', '3 years'),
             -300:('windows', 'senior', '5+ years', '5 years')
         }
+        self.reference_location = "Tuskulenu g. 3, Vilnius"
+        self.locator = Locator()
 
     def get_page_data(self, link):
         req = requests.get(link).text
@@ -94,11 +97,22 @@ class Scraper(threading.Thread):
                             score += points
         return score
 
+    def calculate_distance_score(self, address):
+        # Distance score is calculated according to this formula:
+        # score = 2.456497 + (203.8315 - 2.456497)/(1 + (x/3.988254)^4.54989)
+        score = 0
+        if address:
+            distance = self.locator.distance_between_addresses(self.reference_location, address)
+            if distance:
+                score = 2.456497 + (203.8315 - 2.456497)/(1 + (distance/3.988254)**4.54989)
+                score = round(score)
+        return score
+
     def run(self):
-        link = self.build_request_link([''])
+        link = self.build_request_link(['python'])
         try:
             no_of_ads = self.get_number_of_ads(self.get_job_data(link))
-            link = self.build_request_link([''], no_of_ads)
+            link = self.build_request_link(['python'], no_of_ads)
         except TypeError:
             pass
         jobs = self.get_job_data(link)
@@ -106,7 +120,7 @@ class Scraper(threading.Thread):
         for job in ref_jobs:
             job_ad_data = self.refine_job_ad_data(job['url'])
             job.update(job_ad_data)
-            print(job['url'], job['description_score'])
+            print(job)
             print()
 
 
@@ -192,6 +206,9 @@ class CVScraper(Scraper):
                         job_data['remote'] = False
         description = str(soup.find(class_='content job-description'))
         job_data['description_score'] = self.calculate_job_description_score(description)
+        if job_data.get('address'): print(f"ADDRESSS: {job_data.get('address')}")
+        job_data['distance_score'] = self.calculate_distance_score(job_data.get('address'))
+        job_data['combined_score'] = job_data['description_score'] + job_data['distance_score']
         return job_data
         
 
@@ -270,6 +287,8 @@ class CVbankasScraper(Scraper):
             job_data['address'] = None
         description = str(soup.find(itemprop="description"))
         job_data['description_score'] = self.calculate_job_description_score(description)
+        job_data['distance_score'] = self.calculate_distance_score(job_data.get('address'))
+        job_data['combined_score'] = job_data['description_score'] + job_data['distance_score']
         return job_data
 
 
@@ -329,6 +348,8 @@ class CVonlineScraper(Scraper):
         for k_word in keyword_data:
             description += f"{k_word['value']}, "
         job_data['description_score'] = self.calculate_job_description_score(description)
+        job_data['distance_score'] = self.calculate_distance_score(job_data.get('address'))
+        job_data['combined_score'] = job_data['description_score'] + job_data['distance_score']
         return job_data
 
 
@@ -402,6 +423,8 @@ class CVmarketScraper(Scraper):
             job_data['remote'] = False
         description = str(soup.find(class_="col-md-8"))
         job_data['description_score'] = self.calculate_job_description_score(description)
+        job_data['distance_score'] = self.calculate_distance_score(job_data.get('address'))
+        job_data['combined_score'] = job_data['description_score'] + job_data['distance_score']
         return job_data
 
 
@@ -468,4 +491,6 @@ class GeraPraktikaScraper(Scraper):
             job_data['link'] = None
         description = str(soup.find(class_="company_description"))
         job_data['description_score'] = self.calculate_job_description_score(description)
+        job_data['distance_score'] = self.calculate_distance_score(job_data.get('address'))
+        job_data['combined_score'] = job_data['description_score'] + job_data['distance_score']
         return job_data
