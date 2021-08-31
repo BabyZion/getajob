@@ -127,7 +127,7 @@ class Scraper(threading.Thread):
         for job in ref_jobs:
             job_ad_data = self.refine_job_ad_data(job['url'])
             job.update(job_ad_data)
-            self.logger.info(f"Gathered job info - {job}\n")
+            self.logger.info(f"\n\nGathered job info - {job}\n\n")
 
 
 class CVScraper(Scraper):
@@ -139,6 +139,68 @@ class CVScraper(Scraper):
         self.page_size_req = "&pageSize="
         self.key_word_req = "&texts="
         self.logger = Logger('CV.lt')
+        self.city_map = {
+            1010: 'Vilnius',
+            1020: 'Kaunas',
+            1030: 'Klaipėda',
+            1040: 'Šiauliai',
+            1050: 'Panevėžys',
+            1060: 'Abroad',
+            1070: 'Alytus',
+            1080: 'Anykščiai',
+            1090: 'Birštonas',
+            1100: 'Biržai',
+            1110: 'Druskininkai',
+            1120: 'Elektrėnai',
+            1130: 'Gargždai',
+            1140: 'Ignalina',
+            1150: 'Jonava',
+            1160: 'Joniškis',
+            1170: 'Jurbarkas',
+            1180: 'Kaišiadorys',
+            1183: 'Kalvarija',
+            1187: 'Kazlų Rūda',
+            1190: 'Kelmė',
+            1200: 'Kėdainiai',
+            1210: 'Kretinga',
+            1220: 'Kupiškis',
+            1222: 'Kuršėnai',
+            1230: 'Lazdijai',
+            1234: 'Lentvaris',
+            1240: 'Marijampolė',
+            1250: 'Mažeikiai',
+            1260: 'Molėtai',
+            1270: 'Naujoji Akmenė',
+            1280: 'Neringa',
+            1287: 'Pagėgiai',
+            1290: 'Pakruojis',
+            1300: 'Palanga',
+            1320: 'Pasvalys',
+            1330: 'Plungė',
+            1340: 'Prienai',
+            1350: 'Radviliškis',
+            1360: 'Raseiniai',
+            1364: 'Rietavas',
+            1370: 'Rokiškis',
+            1390: 'Skuodas',
+            1400: 'Šakiai',
+            1410: 'Šalčininkai',
+            1420: 'Šilalė',
+            1430: 'Šilutė',
+            1440: 'Širvintos',
+            1450: 'Švenčionys',
+            1460: 'Tauragė',
+            1470: 'Telšiai',
+            1480: 'Trakai',
+            1490: 'Ukmergė',
+            1500: 'Nope',
+            1510: 'Varėna',
+            1517: 'Vievis',
+            1520: 'Vilkaviškis',
+            1530: 'Visagians',
+            1540: 'Zarasai',
+            1600: 'Kita'
+        }
 
     def get_number_of_ads(self, page):
         no_of_jobs = page['searchResult']['rowCount'] + 1
@@ -150,9 +212,9 @@ class CVScraper(Scraper):
             job_data = {}
             job_data['title'] = job['title']
             job_data['company'] = job['company']
-            job_data['city'] = job['cities']
+            job_data['city'] = self.city_map[job['cities'][0]]
             job_data['salaryFrom'], job_data['salaryTo'], job_data['salaryAvg'] = self.count_salary(job['salary'])
-            job_data['tags'] = job['firstDepartmentName'].split()
+            job_data['tags'] = " ".join(job['firstDepartmentName'].split())
             job_data['url'] = self.base_link + job['url']
             jobs.append(job_data)
         return jobs
