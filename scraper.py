@@ -371,6 +371,11 @@ class CVonlineScraper(Scraper):
         self.page_size_req = "&limit="
         self.key_word_req = "&keywords[]="
         self.logger = Logger('cvonline.lt')
+        self.city_map = {
+            540: 'Vilnius',
+            501: 'Kaunas',
+            505: 'Klaipėda'
+        }
 
     def get_number_of_ads(self, page):
         no_of_jobs = page['total']
@@ -382,8 +387,9 @@ class CVonlineScraper(Scraper):
             job_data = {}
             job_data['title'] = job['positionTitle']
             job_data['company'] = job['employerName']
-            job_data['city'] = job['townId']
-            job_data['tags'] = job['keywords']
+            job_data['city'] = self.city_map.get(job['townId'])
+            tags = job['keywords']
+            if tags: job_data['tags'] = " ".join(tags)
             job_data['salaryFrom'] = job['salaryFrom']
             job_data['salaryTo'] = job['salaryTo']
             if not job_data['salaryTo']: job_data['salaryTo'] = 0
