@@ -5,6 +5,7 @@ import json
 import threading
 from bs4 import BeautifulSoup
 from locator import Locator
+from logger import Logger
 
 
 class Scraper(threading.Thread):
@@ -24,7 +25,9 @@ class Scraper(threading.Thread):
         self.locator = Locator(self.db)
 
     def get_page_data(self, link):
+        self.logger.info(f"Requesting link: {link}")
         req = requests.get(link).text
+        self.logger.info(f"Requesting link: {link} - SUCCESS!!!")
         return req
 
     def get_job_data(self, link):
@@ -110,19 +113,21 @@ class Scraper(threading.Thread):
         return score
 
     def run(self):
-        link = self.build_request_link(['python'])
+        link = self.build_request_link(['linux'])
         try:
             no_of_ads = self.get_number_of_ads(self.get_job_data(link))
-            link = self.build_request_link(['python'], no_of_ads)
+            link = self.build_request_link(['linux'], no_of_ads)
         except TypeError:
             pass
+        self.logger.info(f"Attempting to gather job data for {link}.")
         jobs = self.get_job_data(link)
+        self.logger.info(f"Refining job data....")
         ref_jobs = self.refine_job_data(jobs)
+        self.logger.info(f"Attempting to gather job ad data...")
         for job in ref_jobs:
             job_ad_data = self.refine_job_ad_data(job['url'])
             job.update(job_ad_data)
-            print(job)
-            print()
+            self.logger.info(f"Gathered job info - {job}\n")
 
 
 class CVScraper(Scraper):
@@ -133,6 +138,7 @@ class CVScraper(Scraper):
         self.base_search_link = "https://www.cv.lt/smvc/board/list/get?desired=false&handicapped=false&page=1&remote=false&sortField=ORDER_TIME"
         self.page_size_req = "&pageSize="
         self.key_word_req = "&texts="
+        self.logger = Logger('CV.lt')
 
     def get_number_of_ads(self, page):
         no_of_jobs = page['searchResult']['rowCount'] + 1
@@ -223,6 +229,7 @@ class CVbankasScraper(Scraper):
         self.no_of_pages_req = "&page="
         self.page_line_f_class = "pages_ul_inner"
         self.page_line_s_class = "a"
+        self.logger = Logger('cvbankas.lt')
 
     def build_request_link(self, keywords, no_of_pages=1):
         links = []
@@ -301,6 +308,7 @@ class CVonlineScraper(Scraper):
         self.base_search_link = "https://www.cvonline.lt/api/v1/vacancies-service/search?&offset=0&isHourlySalary=false&isRemoteWork=false&lang=lt"
         self.page_size_req = "&limit="
         self.key_word_req = "&keywords[]="
+        self.logger = Logger('cvonline.lt')
 
     def get_number_of_ads(self, page):
         no_of_jobs = page['total']
@@ -362,6 +370,7 @@ class CVmarketScraper(Scraper):
         self.base_search_link = "https://www.cvmarket.lt/joboffers.php?_track=index_click_job_search&op=search&search_location=landingpage&ga_track=homepage"
         self.key_word_req = "&search[keyword]="
         self.no_of_pages_req = "&start="
+        self.logger = Logger('cvmarket.lt')
 
     def get_number_of_ads(self, page):
         soup = BeautifulSoup(page, 'lxml')
@@ -439,6 +448,7 @@ class GeraPraktikaScraper(Scraper):
         self.no_of_pages_req = "/p"
         self.page_line_f_class = "pager"
         self.page_line_s_class = "invisible_pager_button"
+        self.logger = Logger('gerapraktika.lt')
 
     def build_request_link(self, keywords, no_of_pages=1):
         links = []

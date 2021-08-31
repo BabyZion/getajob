@@ -4,6 +4,7 @@ import psycopg2
 import socket
 import threading
 from queue import SimpleQueue
+from logger import Logger
 
 
 class Database(threading.Thread):
@@ -20,8 +21,10 @@ class Database(threading.Thread):
         self.running = False
         self.connected = False
         self.queue = SimpleQueue()
+        self.logger = Logger('Database')
 
     def connect(self):
+        self.logger.info(f"Trying to connect to {self.host}")
         args = f"dbname='{self.dbname}' user='{self.user}' host='{self.host}' password='{self.password}' port={self.port}"
         "'connect_timeout'=3 'keepalives'=1 'keepalives_idle'=5 'keepalives_interval'=2 'keepalives_count'=2"
         try:
@@ -40,17 +43,19 @@ class Database(threading.Thread):
                 pass
             self.cursor = self.connection.cursor()
             self.connected = True
-        except psycopg2.OperationalError:
+            self.logger.info(f"Successfully connected to database - {self.dbname}")
+        except psycopg2.OperationalError as e:
             self.connected = False
             # Periodically try to reconnect.
-            print('What?')
             if self.running:
                 threading.Timer(10, self.connect).start()
+            self.logger.error(f"Unable to connect to database - {e}")
 
     def disconnect(self):
         if self.connected:
             self.cursor.close()
             self.connection.close()
+            self.logger.warning(f"Disconnected from database - {self.dbname}")
 
     def insert_into(self, table, data):
         columns = data.keys()
@@ -59,8 +64,8 @@ class Database(threading.Thread):
         try:
             self.cursor.execute(insert_que, (psycopg2.extensions.AsIs(','.join(columns)), tuple(values)))
             self.connection.commit()
-        except (psycopg2.OperationalError, TypeError):
-            print("Bibys")
+        except (psycopg2.OperationalError, TypeError) as e:
+            self.logger.error(f"Unable to add data to database - {e}")
             self.connected = False
             threading.Timer(10, self.connect).start()
 
@@ -70,8 +75,9 @@ class Database(threading.Thread):
                 self.cursor.execute(req)
                 data = self.cursor.fetchall()
                 return data
-            except psycopg2.OperationalError:
+            except psycopg2.OperationalError as e:
                 self.connected = False  
+                self.logger.error(f"Unable to execute the request - {e}")
 
     def stop(self):
         while not self.queue.empty():
@@ -87,3 +93,4 @@ class Database(threading.Thread):
             table, data = self.queue.get()
             if data:
                 self.insert_into(table, data)
+                self.logger.info(f"Data inserted for table {table}")

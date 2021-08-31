@@ -3,6 +3,7 @@
 from geopy.distance import geodesic
 from geopy.extra.rate_limiter import RateLimiter
 from geopy.geocoders import Nominatim
+from logger import Logger
 
 
 class Locator:
@@ -10,12 +11,20 @@ class Locator:
     def __init__(self, db):
         self.geocoder = RateLimiter(Nominatim(user_agent='CVscraper').geocode, min_delay_seconds=1)
         self.db = db
+        self.logger = Logger('Locator')
+        self.logger.info(f"Locator object created.")
 
     def distance_between_addresses(self, addr1, addr2):
+        self.logger.info(f"Calculating distance between {addr1} and {addr2}.")
+        distance = None
         cord_1 = self.__get_coordinates_from_address(addr1)
         cord_2 = self.__get_coordinates_from_address(addr2)
         if cord_1 != (0,0) or cord_2 != (0,0):
             distance = round(geodesic(cord_1, cord_2).km, 3)
+        if distance:
+            self.logger.info(f"Distance between {addr1} and {addr2} is {distance}.")
+        else:
+            self.logger.warning(f"Distance between {addr1} and {addr2} COULDN'T BE CALCULATED!!!")
         return distance
 
     def __get_addr_from_db(self, addr):
@@ -23,6 +32,7 @@ class Locator:
         req = f"SELECT EXISTS(SELECT 1 FROM addresses WHERE name='{addr}');"
         exists = self.db.request(req)[0][0]
         if exists:
+            self.logger.info(f"{addr} exists in a database.")
             req = f"SELECT * FROM addresses WHERE name='{addr}';"
             address_db = self.db.request(req)[0]
             address['name'] = address_db[0]
@@ -41,12 +51,15 @@ class Locator:
         else:
             # Check the OSM database.
             try:
+                self.logger.info(f"Trying to fetch {address} from OSM database.")
                 osm_data = self.geocoder(address).raw
                 osm_data['name'] = address
                 latitude = osm_data['lat']
                 longitude = osm_data['lon']
+                self.logger.info(f"Found {address} in OSM database successfully.")
                 self.__osm_data_to_db(osm_data)
             except AttributeError:
+                self.logger.error(f"Couldn't fetch {address} from OSM database.")
                 return (0,0)
         return (latitude, longitude)
 
@@ -57,3 +70,4 @@ class Locator:
         data['lat'] = osm_data['lat']
         data['lon'] = osm_data['lon']
         self.db.queue.put(('addresses', data))
+        self.logger.info(f"Put {osm_data['name']} into database queue.")
