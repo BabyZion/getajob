@@ -106,17 +106,18 @@ class Scraper(threading.Thread):
         # score = 2.456497 + (203.8315 - 2.456497)/(1 + (x/3.988254)^4.54989)
         score = 0
         if address:
-            distance = self.locator.distance_between_addresses(self.reference_location, address)
+            #distance = self.locator.distance_between_addresses(self.reference_location, address)
+            distance = self.locator.TG3_distance(address)
             if distance:
                 score = 2.456497 + (203.8315 - 2.456497)/(1 + (distance/3.988254)**4.54989)
                 score = round(score)
         return score
 
     def run(self):
-        link = self.build_request_link(['linux'])
+        link = self.build_request_link(['python'])
         try:
             no_of_ads = self.get_number_of_ads(self.get_job_data(link))
-            link = self.build_request_link(['linux'], no_of_ads)
+            link = self.build_request_link(['python'], no_of_ads)
         except TypeError:
             pass
         self.logger.info(f"Attempting to gather job data for {link}.")
@@ -251,7 +252,7 @@ class CVScraper(Scraper):
                 for k_word in address_k_words:
                     if k_word in detail_h6:
                         address = str(detail.p).replace("<p>", "").replace("</p>", "")
-                        job_data['address'] = address
+                        job_data['address'] = address.strip()
                         break
                 for k_word in link_k_words:
                     if k_word in detail_h6:
@@ -275,7 +276,6 @@ class CVScraper(Scraper):
                         job_data['remote'] = False
         description = str(soup.find(class_='content job-description'))
         job_data['description_score'] = self.calculate_job_description_score(description)
-        if job_data.get('address'): print(f"ADDRESSS: {job_data.get('address')}")
         job_data['distance_score'] = self.calculate_distance_score(job_data.get('address'))
         job_data['combined_score'] = job_data['description_score'] + job_data['distance_score']
         return job_data
@@ -352,7 +352,7 @@ class CVbankasScraper(Scraper):
         except TypeError:
             job_data['link'] = None
         try:
-            job_data['address'] = str(soup.find(class_="partners_company_info_additional_info_location_url").text)
+            job_data['address'] = str(soup.find(class_="partners_company_info_additional_info_location_url").text).strip()
         except AttributeError:
             job_data['address'] = None
         description = str(soup.find(itemprop="description"))
@@ -415,7 +415,7 @@ class CVonlineScraper(Scraper):
         job_data['email'] = str(soup['props']['initialReduxState']['publicVacancies'][id_]['contacts']['email'])
         job_data['phone_no'] = str(soup['props']['initialReduxState']['publicVacancies'][id_]['contacts']['phone'])
         job_data['remote'] = bool(soup['props']['initialReduxState']['publicVacancies'][id_]['highlights']['remoteWork'])
-        job_data['address'] = str(soup['props']['initialReduxState']['publicVacancies'][id_]['highlights']['address'])
+        job_data['address'] = str(soup['props']['initialReduxState']['publicVacancies'][id_]['highlights']['address']).strip()
         job_data['link'] = soup['props']['initialReduxState']['publicVacancies'][id_]['employer']['webpageUrl']
         skills_data = soup['props']['initialReduxState']['publicVacancies'][id_]['skills']
         description = ''
@@ -560,7 +560,7 @@ class GeraPraktikaScraper(Scraper):
         soup = BeautifulSoup(req, 'lxml')
         description = soup.find(class_="content job-description")
         job_data = {}
-        job_data['address'] = str(soup.find(class_="box_info").find_all('div')[1].text)
+        job_data['address'] = str(soup.find(class_="box_info").find_all('div')[1].text).strip()
         job_data['email'] = str(soup.find(class_="box_info").find_all('div')[2].text)
         phone_no_str = str(soup.find(class_="box_info").find_all('div')[3].text)
         job_data['phone_no'] = "".join(filter(str.isdigit, phone_no_str))

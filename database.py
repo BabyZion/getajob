@@ -69,14 +69,19 @@ class Database(threading.Thread):
             self.connected = False
             threading.Timer(10, self.connect).start()
 
-    def request(self, req):
+    def request(self, req, fetch=True):
         if self.connected:
             try:
                 self.cursor.execute(req)
-                data = self.cursor.fetchall()
-                return data
+                if fetch:
+                    data = self.cursor.fetchall()
+                    return data
+                else:
+                    self.connection.commit()
             except psycopg2.OperationalError as e:
                 self.connected = False  
+                self.logger.error(f"Unable to execute the request - {e}")
+            except psycopg2.ProgrammingError as e:
                 self.logger.error(f"Unable to execute the request - {e}")
 
     def stop(self):

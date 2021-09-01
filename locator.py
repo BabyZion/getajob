@@ -27,6 +27,22 @@ class Locator:
             self.logger.warning(f"Distance between {addr1} and {addr2} COULDN'T BE CALCULATED!!!")
         return distance
 
+    def TG3_distance(self, address):
+        req = f"SELECT dist_to_tg3 FROM addresses WHERE name='{address}';"
+        try:
+            tg3_dist = self.db.request(req)[0][0]
+        except IndexError:
+            self.logger.warning(f"{address} seems to not be in a database.")
+            tg3_dist = None
+        if not tg3_dist:
+            tg3_dist = self.distance_between_addresses(address, "Tuskulenu g. 3, Vilnius")
+            self.logger.info(f"Updating TG3 distance item in database of {address}")
+            req = f"UPDATE addresses SET dist_to_tg3={tg3_dist} WHERE name='{address}';"
+            self.db.request(req, fetch=False)
+        else:
+            self.logger.info(f"Found TG3 distance of {address} in the database - {tg3_dist}.")
+        return tg3_dist
+
     def __get_addr_from_db(self, addr):
         address = {}
         req = f"SELECT EXISTS(SELECT 1 FROM addresses WHERE name='{addr}');"
@@ -60,6 +76,12 @@ class Locator:
                 self.__osm_data_to_db(osm_data)
             except AttributeError:
                 self.logger.error(f"Couldn't fetch {address} from OSM database.")
+                osm_data = {}
+                osm_data['name'] = address
+                osm_data['lon'] = 0
+                osm_data['lat'] = 0
+                osm_data['place_id'] = 0
+                self.__osm_data_to_db(osm_data)
                 return (0,0)
         return (latitude, longitude)
 
