@@ -68,6 +68,14 @@ class Database(threading.Thread):
             self.logger.error(f"Unable to add data to database - {e}")
             self.connected = False
             threading.Timer(10, self.connect).start()
+        except psycopg2.errors.UniqueViolation as e:
+            self.logger.warning(f"Data already exists in a database and will not be inserted.")
+            self.cursor.execute("ROLLBACK")
+            self.connection.commit()
+        except psycopg2.errors.NumericValueOutOfRange as e:
+            self.logger.error(f"Unable to add data to database - {e}")
+            self.cursor.execute("ROLLBACK")
+            self.connection.commit()
 
     def request(self, req, fetch=True):
         if self.connected:

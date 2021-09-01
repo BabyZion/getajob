@@ -4,6 +4,7 @@ import requests
 import json
 import threading
 from bs4 import BeautifulSoup
+from datetime import datetime
 from locator import Locator
 from logger import Logger
 
@@ -113,6 +114,13 @@ class Scraper(threading.Thread):
                 score = round(score)
         return score
 
+    def insert_jobs_to_database(self, data):
+        insert_time = datetime.now()
+        for datum in data:
+            datum['entered'] = insert_time
+            self.logger.info(f"Trying to insert {datum['url']} to database.")
+            self.db.queue.put(('job_listings', datum))
+
     def run(self):
         link = self.build_request_link(['python'])
         try:
@@ -129,6 +137,7 @@ class Scraper(threading.Thread):
             job_ad_data = self.refine_job_ad_data(job['url'])
             job.update(job_ad_data)
             self.logger.info(f"\n\nGathered job info - {job}\n\n")
+        self.insert_jobs_to_database(ref_jobs)
 
 
 class CVScraper(Scraper):
@@ -416,6 +425,7 @@ class CVonlineScraper(Scraper):
         job_data['phone_no'] = str(soup['props']['initialReduxState']['publicVacancies'][id_]['contacts']['phone'])
         job_data['remote'] = bool(soup['props']['initialReduxState']['publicVacancies'][id_]['highlights']['remoteWork'])
         job_data['address'] = str(soup['props']['initialReduxState']['publicVacancies'][id_]['highlights']['address']).strip()
+        if not job_data['address']: job_data['address'] = None
         job_data['link'] = soup['props']['initialReduxState']['publicVacancies'][id_]['employer']['webpageUrl']
         skills_data = soup['props']['initialReduxState']['publicVacancies'][id_]['skills']
         description = ''
