@@ -121,11 +121,16 @@ class Scraper(threading.Thread):
             self.logger.info(f"Trying to insert {datum['url']} to database.")
             self.db.queue.put(('job_listings', datum))
 
+    def get_existing_job_listing_url(self):
+        req = f"SELECT url, entered<(now() - '1 Month'::interval) FROM job_listings WHERE url LIKE '{self.base_link}%';"
+        urls = self.db.request(req)
+        return urls
+
     def run(self):
-        link = self.build_request_link(['python'])
+        link = self.build_request_link(['linux'])
         try:
             no_of_ads = self.get_number_of_ads(self.get_job_data(link))
-            link = self.build_request_link(['python'], no_of_ads)
+            link = self.build_request_link(['linux'], no_of_ads)
         except TypeError:
             pass
         self.logger.info(f"Attempting to gather job data for {link}.")
@@ -133,6 +138,15 @@ class Scraper(threading.Thread):
         self.logger.info(f"Refining job data....")
         ref_jobs = self.refine_job_data(jobs)
         self.logger.info(f"Attempting to gather job ad data...")
+        existing_urls = self.get_existing_job_listing_url()
+        duplicate_jobs = []
+        for url in existing_urls:
+            for job in ref_jobs:
+                if url[0] == job['url'] and not url[1]:
+                    duplicate_jobs.append(job)
+                    break
+        self.logger.info(f"{len(duplicate_jobs)} duplicate ads found...")
+        ref_jobs = [job for job in ref_jobs if job not in duplicate_jobs]
         for job in ref_jobs:
             job_ad_data = self.refine_job_ad_data(job['url'])
             job.update(job_ad_data)
