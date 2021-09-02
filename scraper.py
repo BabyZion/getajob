@@ -114,19 +114,17 @@ class Scraper(threading.Thread):
                 score = round(score)
         return score
 
-    def insert_jobs_to_database(self, data):
+    def insert_job_to_database(self, data):
         insert_time = datetime.now()
-        for datum in data:
-            datum['entered'] = insert_time
-            self.logger.info(f"Trying to insert {datum['url']} to database.")
-            self.db.queue.put(('job_listings', datum))
+        data['entered'] = insert_time
+        self.logger.info(f"Trying to insert {data['url']} to database.")
+        self.db.queue.put(('job_listings', data))
 
-    def update_jobs_in_database(self, data):
+    def update_job_in_database(self, data):
         update_time = datetime.now()
-        for datum in data:
-            datum['updated'] = update_time
-            self.logger.info(f"Updating job {datum['url']} in a database")
-            self.db.queue.put(('job_listings', datum))
+        data['updated'] = update_time
+        self.logger.info(f"Updating job {data['url']} in a database")
+        self.db.queue.put(('job_listings', data))
 
     def get_existing_job_listing_url(self):
         req = f"SELECT url, entered<(now() - '2 Weeks'::interval) FROM job_listings WHERE url LIKE '{self.base_link}%';"
@@ -162,13 +160,13 @@ class Scraper(threading.Thread):
             job_ad_data = self.refine_job_ad_data(job['url'])
             job.update(job_ad_data)
             self.logger.info(f"\n\nGathered job info - {job}\n\n")
-        self.insert_jobs_to_database(ref_jobs)
+            self.insert_job_to_database(job)
         for job in update_jobs:
             self.logger.info(f"Collecting data to update job info {job['url']}")
             job_ad_data = self.refine_job_ad_data(job['url'])
             job.update(job_ad_data)
             self.logger.info(f"\n\nGathered job info - {job}\n\n")
-        self.update_jobs_in_database(update_jobs)
+            self.update_job_in_database(jobs)
 
 
 class CVScraper(Scraper):
