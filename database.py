@@ -30,7 +30,7 @@ class Database(threading.Thread):
         try:
             self.connection = psycopg2.connect(args)
             # This allows connection to raise psycopg2.OperationalError when database becomes unavailable
-            # during transaction. Othervise, transaction hangs on cursor operations. 
+            # during transaction. Othervise, transaction hangs on cursor operations.
             # FOR UNIX LIKE MACHINES ONLY
             try:
                 s = socket.fromfd(self.connection.fileno(), socket.AF_INET, socket.SOCK_STREAM)
@@ -72,7 +72,7 @@ class Database(threading.Thread):
             self.logger.warning(f"Data already exists in a database and will not be inserted.")
             self.cursor.execute("ROLLBACK")
             self.connection.commit()
-        except psycopg2.errors.NumericValueOutOfRange as e:
+        except (psycopg2.errors.NumericValueOutOfRange, psycopg2.errors.ForeignKeyViolation) as e:
             self.logger.error(f"Unable to add data to database - {e}")
             self.cursor.execute("ROLLBACK")
             self.connection.commit()
@@ -85,7 +85,7 @@ class Database(threading.Thread):
                     req += f"{k}={v},"
                 else:
                     req += f"{k}='{v}',"
-        req = req[:-2] + ' '
+        req = req[:-1] + ' '
         req += f"WHERE {primary_key}='{data[primary_key]}';"
         self.request(req, fetch=False)
 
@@ -99,7 +99,7 @@ class Database(threading.Thread):
                 else:
                     self.connection.commit()
             except psycopg2.OperationalError as e:
-                self.connected = False  
+                self.connected = False
                 self.logger.error(f"Unable to execute the request - {e}")
             except psycopg2.ProgrammingError as e:
                 self.logger.error(f"Unable to execute the request - {e}")
@@ -117,5 +117,12 @@ class Database(threading.Thread):
         while self.running:
             table, data = self.queue.get()
             if data:
-                self.insert_into(table, data)
-                self.logger.info(f"Data inserted for table {table}")
+                if table == 'job_listings':
+                    if data.get('entered'):
+                        self.insert_into(table, data)
+                        self.logger.info(f"Data inserted for table {table}")
+                    elif data.get('updated'):
+                        self.update_row(table, 'url', data)
+                else:
+                    self.insert_into(table, data)
+                    self.logger.info(f"Data inserted for table {table}")

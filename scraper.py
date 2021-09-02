@@ -121,8 +121,15 @@ class Scraper(threading.Thread):
             self.logger.info(f"Trying to insert {datum['url']} to database.")
             self.db.queue.put(('job_listings', datum))
 
+    def update_jobs_in_database(self, data):
+        update_time = datetime.now()
+        for datum in data:
+            datum['updated'] = update_time
+            self.logger.info(f"Updating job {datum['url']} in a database")
+            self.db.queue.put(('job_listings', datum))
+
     def get_existing_job_listing_url(self):
-        req = f"SELECT url, entered<(now() - '1 Month'::interval) FROM job_listings WHERE url LIKE '{self.base_link}%';"
+        req = f"SELECT url, entered<(now() - '2 Weeks'::interval) FROM job_listings WHERE url LIKE '{self.base_link}%';"
         urls = self.db.request(req)
         return urls
 
@@ -144,11 +151,10 @@ class Scraper(threading.Thread):
         for url in existing_urls:
             for job in ref_jobs:
                 if url[0] == job['url']:
-                    if not url[1]:
-                        duplicate_jobs.append(job)
-                        break
-                    elif url[1]:
+                    if url[1]:
                         update_jobs.append(job)
+                    duplicate_jobs.append(job)
+                    break
         self.logger.info(f"{len(duplicate_jobs)} duplicate ads found and {len(update_jobs)} to be updated...")
         ref_jobs = [job for job in ref_jobs if job not in duplicate_jobs]
         for job in ref_jobs:
@@ -157,10 +163,16 @@ class Scraper(threading.Thread):
             job.update(job_ad_data)
             self.logger.info(f"\n\nGathered job info - {job}\n\n")
         self.insert_jobs_to_database(ref_jobs)
+        for job in update_jobs:
+            self.logger.info(f"Collecting data to update job info {job['url']}")
+            job_ad_data = self.refine_job_ad_data(job['url'])
+            job.update(job_ad_data)
+            self.logger.info(f"\n\nGathered job info - {job}\n\n")
+        self.update_jobs_in_database(update_jobs)
 
 
 class CVScraper(Scraper):
-    
+
     def __init__(self, db):
         super().__init__(db)
         self.base_link = "https://www.cv.lt"
@@ -307,10 +319,10 @@ class CVScraper(Scraper):
         job_data['distance_score'] = self.calculate_distance_score(job_data.get('address'))
         job_data['combined_score'] = job_data['description_score'] + job_data['distance_score']
         return job_data
-        
+
 
 class CVbankasScraper(Scraper):
-    
+
     def __init__(self, db):
         super().__init__(db)
         self.base_link = "https://www.cvbankas.lt"
@@ -331,7 +343,7 @@ class CVbankasScraper(Scraper):
                 page_link = link + self.no_of_pages_req + str(i)
                 links.append(page_link)
         return links
-            
+
     def get_job_data(self, links):
         all_jobs = []
         for link in links:
@@ -391,7 +403,7 @@ class CVbankasScraper(Scraper):
 
 
 class CVonlineScraper(Scraper):
-    
+
     def __init__(self, db):
         super().__init__(db)
         self.base_link = "https://www.cvonline.lt"
@@ -443,8 +455,11 @@ class CVonlineScraper(Scraper):
         job_data['email'] = str(soup['props']['initialReduxState']['publicVacancies'][id_]['contacts']['email'])
         job_data['phone_no'] = str(soup['props']['initialReduxState']['publicVacancies'][id_]['contacts']['phone'])
         job_data['remote'] = bool(soup['props']['initialReduxState']['publicVacancies'][id_]['highlights']['remoteWork'])
-        job_data['address'] = str(soup['props']['initialReduxState']['publicVacancies'][id_]['highlights']['address']).strip()
-        if not job_data['address']: job_data['address'] = None
+        address = soup['props']['initialReduxState']['publicVacancies'][id_]['highlights']['address']
+        if address:
+            job_data['address'] = str(address).strip()
+        else:
+            job_data['address'] = None
         job_data['link'] = soup['props']['initialReduxState']['publicVacancies'][id_]['employer']['webpageUrl']
         skills_data = soup['props']['initialReduxState']['publicVacancies'][id_]['skills']
         description = ''
@@ -536,7 +551,7 @@ class CVmarketScraper(Scraper):
 
 
 class GeraPraktikaScraper(Scraper):
-    
+
     def __init__(self, db):
         super().__init__(db)
         self.base_link = "https://www.gerapraktika.lt"

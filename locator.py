@@ -46,6 +46,7 @@ class Locator:
     def __get_addr_from_db(self, addr):
         address = {}
         req = f"SELECT EXISTS(SELECT 1 FROM addresses WHERE name='{addr}');"
+        print(addr)
         exists = self.db.request(req)[0][0]
         if exists:
             self.logger.info(f"{addr} exists in a database.")
