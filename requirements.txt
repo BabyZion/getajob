@@ -1,3 +1,5 @@
 beautifulsoup4
 pyserial
 geopy
+psycopg2
+lxml
