@@ -77,6 +77,18 @@ class Database(threading.Thread):
             self.cursor.execute("ROLLBACK")
             self.connection.commit()
 
+    def update_row(self, table, primary_key, data):
+        req = f"UPDATE {table} SET "
+        for k, v in data.items():
+            if k != primary_key:
+                if isinstance(v, int) or isinstance(v, float):
+                    req += f"{k}={v},"
+                else:
+                    req += f"{k}='{v}',"
+        req = req[:-2] + ' '
+        req += f"WHERE {primary_key}='{data[primary_key]}';"
+        self.request(req, fetch=False)
+
     def request(self, req, fetch=True):
         if self.connected:
             try:

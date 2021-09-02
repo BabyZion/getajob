@@ -140,14 +140,19 @@ class Scraper(threading.Thread):
         self.logger.info(f"Attempting to gather job ad data...")
         existing_urls = self.get_existing_job_listing_url()
         duplicate_jobs = []
+        update_jobs = []
         for url in existing_urls:
             for job in ref_jobs:
-                if url[0] == job['url'] and not url[1]:
-                    duplicate_jobs.append(job)
-                    break
-        self.logger.info(f"{len(duplicate_jobs)} duplicate ads found...")
+                if url[0] == job['url']:
+                    if not url[1]:
+                        duplicate_jobs.append(job)
+                        break
+                    elif url[1]:
+                        update_jobs.append(job)
+        self.logger.info(f"{len(duplicate_jobs)} duplicate ads found and {len(update_jobs)} to be updated...")
         ref_jobs = [job for job in ref_jobs if job not in duplicate_jobs]
         for job in ref_jobs:
+            self.logger.info(f"Collecting data for new job {job['url']}.")
             job_ad_data = self.refine_job_ad_data(job['url'])
             job.update(job_ad_data)
             self.logger.info(f"\n\nGathered job info - {job}\n\n")
