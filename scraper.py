@@ -11,7 +11,7 @@ from logger import Logger
 
 class Scraper(threading.Thread):
 
-    def __init__(self, db):
+    def __init__(self, db, locator):
         super().__init__()
         self.description_keyword_map = {
             100:(('python'), ('linux', 'unix'), ('junior'), ('1-2 years', '2 years', '1 year')),
@@ -23,7 +23,7 @@ class Scraper(threading.Thread):
         }
         self.reference_location = "Tuskulenu g. 3, Vilnius"
         self.db = db
-        self.locator = Locator(self.db)
+        self.locator = locator
 
     def get_page_data(self, link):
         self.logger.info(f"Requesting link: {link}")
@@ -171,8 +171,8 @@ class Scraper(threading.Thread):
 
 class CVScraper(Scraper):
 
-    def __init__(self, db):
-        super().__init__(db)
+    def __init__(self, db, locator):
+        super().__init__(db, locator)
         self.base_link = "https://www.cv.lt"
         self.base_search_link = "https://www.cv.lt/smvc/board/list/get?desired=false&handicapped=false&page=1&remote=false&sortField=ORDER_TIME"
         self.page_size_req = "&pageSize="
@@ -321,8 +321,8 @@ class CVScraper(Scraper):
 
 class CVbankasScraper(Scraper):
 
-    def __init__(self, db):
-        super().__init__(db)
+    def __init__(self, db, locator):
+        super().__init__(db, locator)
         self.base_link = "https://www.cvbankas.lt"
         self.base_search_link = "https://www.cvbankas.lt/?"
         self.key_word_req = "&keyw="
@@ -402,8 +402,8 @@ class CVbankasScraper(Scraper):
 
 class CVonlineScraper(Scraper):
 
-    def __init__(self, db):
-        super().__init__(db)
+    def __init__(self, db, locator):
+        super().__init__(db, locator)
         self.base_link = "https://www.cvonline.lt"
         self.base_search_link = "https://www.cvonline.lt/api/v1/vacancies-service/search?&offset=0&isHourlySalary=false&isRemoteWork=false&lang=lt"
         self.page_size_req = "&limit="
@@ -474,8 +474,8 @@ class CVonlineScraper(Scraper):
 
 class CVmarketScraper(Scraper):
 
-    def __init__(self, db):
-        super().__init__(db)
+    def __init__(self, db, locator):
+        super().__init__(db, locator)
         self.base_link = "https://www.cvmarket.lt"
         self.base_search_link = "https://www.cvmarket.lt/joboffers.php?_track=index_click_job_search&op=search&search_location=landingpage&ga_track=homepage"
         self.key_word_req = "&search[keyword]="
@@ -550,8 +550,8 @@ class CVmarketScraper(Scraper):
 
 class GeraPraktikaScraper(Scraper):
 
-    def __init__(self, db):
-        super().__init__(db)
+    def __init__(self, db, locator):
+        super().__init__(db, locator)
         self.base_link = "https://www.gerapraktika.lt"
         self.base_search_link = "https://www.gerapraktika.lt/praktikos-skelbimai/p0?"
         self.key_word_req = ";title="
