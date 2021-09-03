@@ -10,6 +10,7 @@ class Locator:
 
     def __init__(self, db):
         self.geocoder = RateLimiter(Nominatim(user_agent='CVscraper').geocode, min_delay_seconds=1)
+        self.geodesic = RateLimiter(geodesic, min_delay_seconds=1)
         self.db = db
         self.logger = Logger('Locator')
         self.logger.info(f"Locator object created.")
@@ -20,7 +21,7 @@ class Locator:
         cord_1 = self.__get_coordinates_from_address(addr1)
         cord_2 = self.__get_coordinates_from_address(addr2)
         if cord_1 != (0,0) or cord_2 != (0,0):
-            distance = round(geodesic(cord_1, cord_2).km, 3)
+            distance = round(self.geodesic(cord_1, cord_2).km, 3)
         if distance:
             self.logger.info(f"Distance between {addr1} and {addr2} is {distance}.")
         else:
