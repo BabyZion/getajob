@@ -32,8 +32,8 @@ class Locator:
         req = f"SELECT dist_to_tg3 FROM addresses WHERE name='{address}';"
         try:
             tg3_dist = self.db.request(req)[0][0]
-        except IndexError:
-            self.logger.warning(f"{address} seems to not be in a database.")
+        except (IndexError, TypeError):
+            self.logger.warning(f"{address} seems to not be in a database or something went wrong.")
             tg3_dist = None
         if not tg3_dist:
             tg3_dist = self.distance_between_addresses(address, "Tuskulenu g. 3, Vilnius")
@@ -49,7 +49,7 @@ class Locator:
         req = f"SELECT EXISTS(SELECT 1 FROM addresses WHERE name='{addr}');"
         try:
             exists = self.db.request(req)[0][0]
-        except TypeError as e:
+        except (IndexError, TypeError) as e:
             self.logger.error(f"Problem querying {addr} from the database - {e}")
             exists = None
         if exists:

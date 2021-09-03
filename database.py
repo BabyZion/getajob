@@ -22,6 +22,7 @@ class Database(threading.Thread):
         self.connected = False
         self.queue = SimpleQueue()
         self.logger = Logger('Database')
+        self.lock = threading.Lock()
 
     def connect(self):
         self.logger.info(f"Trying to connect to {self.host}")
@@ -61,21 +62,22 @@ class Database(threading.Thread):
         columns = data.keys()
         values = data.values()
         insert_que = f"INSERT INTO {table} (%s) VALUES %s"
-        try:
-            self.cursor.execute(insert_que, (psycopg2.extensions.AsIs(','.join(columns)), tuple(values)))
-            self.connection.commit()
-        except (psycopg2.OperationalError, TypeError) as e:
-            self.logger.error(f"Unable to add data to database - {e}")
-            self.connected = False
-            threading.Timer(10, self.connect).start()
-        except psycopg2.errors.UniqueViolation as e:
-            self.logger.warning(f"Data already exists in a database and will not be inserted.")
-            self.cursor.execute("ROLLBACK")
-            self.connection.commit()
-        except (psycopg2.errors.NumericValueOutOfRange, psycopg2.errors.ForeignKeyViolation) as e:
-            self.logger.error(f"Unable to add data to database - {e}")
-            self.cursor.execute("ROLLBACK")
-            self.connection.commit()
+        with self.lock:
+            try:
+                self.cursor.execute(insert_que, (psycopg2.extensions.AsIs(','.join(columns)), tuple(values)))
+                self.connection.commit()
+            except (psycopg2.OperationalError, TypeError) as e:
+                self.logger.error(f"Unable to add data to database - {e}")
+                self.cursor.execute("ROLLBACK")
+                self.connection.commit()
+            except psycopg2.errors.UniqueViolation as e:
+                self.logger.warning(f"Data already exists in a database and will not be inserted.")
+                self.cursor.execute("ROLLBACK")
+                self.connection.commit()
+            except (psycopg2.errors.NumericValueOutOfRange, psycopg2.errors.ForeignKeyViolation) as e:
+                self.logger.error(f"Unable to add data to database - {e}")
+                self.cursor.execute("ROLLBACK")
+                self.connection.commit()
 
     def update_row(self, table, primary_key, data):
         req = f"UPDATE {table} SET "
@@ -86,23 +88,32 @@ class Database(threading.Thread):
                 else:
                     req += f"{k}='{v}',"
         req = req[:-1] + ' '
+        # ADD LOCK MAYBE
         req += f"WHERE {primary_key}='{data[primary_key]}';"
         self.request(req, fetch=False)
 
     def request(self, req, fetch=True):
         if self.connected:
-            try:
-                self.cursor.execute(req)
-                if fetch:
-                    data = self.cursor.fetchall()
-                    return data
-                else:
+            with self.lock:
+                try:
+                    self.cursor.execute(req)
+                    if fetch:
+                        data = self.cursor.fetchall()
+                        return data
+                    else:
+                        self.connection.commit()
+                except psycopg2.OperationalError as e:
+                    self.logger.error(f"Unable to execute the request - {e}")
+                    self.cursor.execute("ROLLBACK")
                     self.connection.commit()
-            except psycopg2.OperationalError as e:
-                self.connected = False
-                self.logger.error(f"Unable to execute the request - {e}")
-            except psycopg2.ProgrammingError as e:
-                self.logger.error(f"Unable to execute the request - {e}")
+                except psycopg2.ProgrammingError as e:
+                    self.logger.error(f"Unable to execute the request - {e}")
+                    self.cursor.execute("ROLLBACK")
+                    self.connection.commit()
+                except psycopg2.errors.InFailedSqlTransaction as e:
+                    self.logger.error(f"Unable to execute the request - {e}")
+                    self.cursor.execute("ROLLBACK")
+                    self.connection.commit()
 
     def stop(self):
         while not self.queue.empty():

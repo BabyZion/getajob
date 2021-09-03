@@ -126,6 +126,20 @@ class Scraper(threading.Thread):
         self.logger.info(f"Updating job {data['url']} in a database")
         self.db.queue.put(('job_listings', data))
 
+    def scrape_and_insert(self, job):
+        self.logger.info(f"Collecting data for new job {job['url']}.")
+        job_ad_data = self.refine_job_ad_data(job['url'])
+        job.update(job_ad_data)
+        self.logger.info(f"\n\nGathered job info - {job}\n\n")
+        self.insert_job_to_database(job)
+
+    def scrap_and_update(self, job):
+        self.logger.info(f"Collecting data to update job info {job['url']}")
+        job_ad_data = self.refine_job_ad_data(job['url'])
+        job.update(job_ad_data)
+        self.logger.info(f"\n\nGathered job info - {job}\n\n")
+        self.update_job_in_database(jobs)
+
     def get_existing_job_listing_url(self):
         req = f"SELECT url, entered<(now() - '2 Weeks'::interval) FROM job_listings WHERE url LIKE '{self.base_link}%';"
         urls = self.db.request(req)
@@ -155,18 +169,22 @@ class Scraper(threading.Thread):
                     break
         self.logger.info(f"{len(duplicate_jobs)} duplicate ads found and {len(update_jobs)} to be updated...")
         ref_jobs = [job for job in ref_jobs if job not in duplicate_jobs]
+        self.logger.info(f"{len(ref_jobs)} will be attempted to be scraped.")
+        threads = []
         for job in ref_jobs:
-            self.logger.info(f"Collecting data for new job {job['url']}.")
-            job_ad_data = self.refine_job_ad_data(job['url'])
-            job.update(job_ad_data)
-            self.logger.info(f"\n\nGathered job info - {job}\n\n")
-            self.insert_job_to_database(job)
+            t = threading.Thread(target=self.scrape_and_insert, args=[job])
+            t.start()
+            threads.append(t)
+        for t in threads:
+            t.join()
+        self.logger.info(f"{len(update_jobs)} will be attempted to be updated.")
+        threads = []
         for job in update_jobs:
-            self.logger.info(f"Collecting data to update job info {job['url']}")
-            job_ad_data = self.refine_job_ad_data(job['url'])
-            job.update(job_ad_data)
-            self.logger.info(f"\n\nGathered job info - {job}\n\n")
-            self.update_job_in_database(jobs)
+            t = threading.Thread(target=self.scrape_and_update, args=[job])
+            t.start()
+            threads.append(t)
+        for t in threads:
+            t.join()
 
 
 class CVScraper(Scraper):
