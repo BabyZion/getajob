@@ -22,6 +22,8 @@ class Scraper(threading.Thread):
             -300:('windows', 'senior', '5+ years', '5 years')
         }
         self.reference_location = "Tuskulenu g. 3, Vilnius"
+        self.time_to_scrape_event = threading.Event()
+        self.running = False
         self.db = db
         self.locator = locator
 
@@ -146,45 +148,49 @@ class Scraper(threading.Thread):
         return urls
 
     def run(self):
-        link = self.build_request_link(['linux'])
-        try:
-            no_of_ads = self.get_number_of_ads(self.get_job_data(link))
-            link = self.build_request_link(['linux'], no_of_ads)
-        except TypeError:
-            pass
-        self.logger.info(f"Attempting to gather job data for {link}.")
-        jobs = self.get_job_data(link)
-        self.logger.info(f"Refining job data....")
-        ref_jobs = self.refine_job_data(jobs)
-        self.logger.info(f"Attempting to gather job ad data...")
-        existing_urls = self.get_existing_job_listing_url()
-        duplicate_jobs = []
-        update_jobs = []
-        for url in existing_urls:
+        self.running = True
+        while self.running:
+            self.time_to_scrape_event.wait()
+            link = self.build_request_link(['python'])
+            try:
+                no_of_ads = self.get_number_of_ads(self.get_job_data(link))
+                link = self.build_request_link(['python'], no_of_ads)
+            except TypeError:
+                pass
+            self.logger.info(f"Attempting to gather job data for {link}.")
+            jobs = self.get_job_data(link)
+            self.logger.info(f"Refining job data....")
+            ref_jobs = self.refine_job_data(jobs)
+            self.logger.info(f"Attempting to gather job ad data...")
+            existing_urls = self.get_existing_job_listing_url()
+            duplicate_jobs = []
+            update_jobs = []
+            for url in existing_urls:
+                for job in ref_jobs:
+                    if url[0] == job['url']:
+                        if url[1]:
+                            update_jobs.append(job)
+                        duplicate_jobs.append(job)
+                        break
+            self.logger.info(f"{len(duplicate_jobs)} duplicate ads found and {len(update_jobs)} to be updated...")
+            ref_jobs = [job for job in ref_jobs if job not in duplicate_jobs]
+            self.logger.info(f"{len(ref_jobs)} will be attempted to be scraped.")
+            threads = []
             for job in ref_jobs:
-                if url[0] == job['url']:
-                    if url[1]:
-                        update_jobs.append(job)
-                    duplicate_jobs.append(job)
-                    break
-        self.logger.info(f"{len(duplicate_jobs)} duplicate ads found and {len(update_jobs)} to be updated...")
-        ref_jobs = [job for job in ref_jobs if job not in duplicate_jobs]
-        self.logger.info(f"{len(ref_jobs)} will be attempted to be scraped.")
-        threads = []
-        for job in ref_jobs:
-            t = threading.Thread(target=self.scrape_and_insert, args=[job])
-            t.start()
-            threads.append(t)
-        for t in threads:
-            t.join()
-        self.logger.info(f"{len(update_jobs)} will be attempted to be updated.")
-        threads = []
-        for job in update_jobs:
-            t = threading.Thread(target=self.scrape_and_update, args=[job])
-            t.start()
-            threads.append(t)
-        for t in threads:
-            t.join()
+                t = threading.Thread(target=self.scrape_and_insert, args=[job])
+                t.start()
+                threads.append(t)
+            for t in threads:
+                t.join()
+            self.logger.info(f"{len(update_jobs)} will be attempted to be updated.")
+            threads = []
+            for job in update_jobs:
+                t = threading.Thread(target=self.scrape_and_update, args=[job])
+                t.start()
+                threads.append(t)
+            for t in threads:
+                t.join()
+            self.time_to_scrape_event.clear()
 
 
 class CVScraper(Scraper):
