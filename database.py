@@ -4,6 +4,7 @@ import psycopg2
 import psycopg2.extras
 import socket
 import threading
+import traceback
 from queue import SimpleQueue
 from logger import Logger
 
@@ -100,11 +101,12 @@ class Database(threading.Thread):
             with self.lock:
                 try:
                     if dict_cursor:
-                        self.dict_cursor.execute(req)
+                        cursor = self.dict_cursor
                     else:
-                        self.cursor.execute(req)
+                        cursor = self.cursor
+                    cursor.execute(req)
                     if fetch:
-                        data = self.cursor.fetchall()
+                        data = cursor.fetchall()
                         return data
                     else:
                         self.connection.commit()
