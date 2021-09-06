@@ -1,6 +1,7 @@
 #!/usr/bin/python3
 
 import psycopg2
+import psycopg2.extras
 import socket
 import threading
 from queue import SimpleQueue
@@ -18,6 +19,7 @@ class Database(threading.Thread):
         self.port = '5432'
         self.connection = None
         self.cursor = None
+        self.dict_cursor = None
         self.running = False
         self.connected = False
         self.queue = SimpleQueue()
@@ -43,6 +45,7 @@ class Database(threading.Thread):
             except AttributeError:
                 pass
             self.cursor = self.connection.cursor()
+            self.dict_cursor = self.connection.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
             self.connected = True
             self.logger.info(f"Successfully connected to database - {self.dbname}")
         except psycopg2.OperationalError as e:
@@ -92,11 +95,14 @@ class Database(threading.Thread):
         req += f"WHERE {primary_key}='{data[primary_key]}';"
         self.request(req, fetch=False)
 
-    def request(self, req, fetch=True):
+    def request(self, req, fetch=True, dict_cursor=False):
         if self.connected:
             with self.lock:
                 try:
-                    self.cursor.execute(req)
+                    if dict_cursor:
+                        self.dict_cursor.execute(req)
+                    else:
+                        self.cursor.execute(req)
                     if fetch:
                         data = self.cursor.fetchall()
                         return data
