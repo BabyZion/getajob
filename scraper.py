@@ -23,6 +23,7 @@ class Scraper(threading.Thread):
         }
         self.reference_location = "Tuskulenu g. 3, Vilnius"
         self.time_to_scrape_event = threading.Event()
+        self.finished_scraping = threading.Event()
         self.running = False
         self.db = db
         self.locator = locator
@@ -191,6 +192,7 @@ class Scraper(threading.Thread):
             for t in threads:
                 t.join()
             self.time_to_scrape_event.clear()
+            self.finished_scraping.set()
 
 
 class CVScraper(Scraper):
