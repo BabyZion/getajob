@@ -33,5 +33,5 @@ if __name__ == "__main__":
     scrapers = [CVScraper(db, locator), CVbankasScraper(db, locator),
         CVonlineScraper(db, locator), CVmarketScraper(db, locator),
             GeraPraktikaScraper(db, locator)]
-    scrape_periodically(scrapers, 60, sb)
+    scrape_periodically(scrapers, 28800, sb)
     sb.start()
