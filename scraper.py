@@ -13,6 +13,7 @@ class Scraper(threading.Thread):
 
     def __init__(self, db, locator):
         super().__init__()
+        self.search_keywords = ['python', 'linux', 'data', 'server']
         self.description_keyword_map = {
             100:(('python'), ('linux', 'unix'), ('junior'), ('1-2 years', '2 years', '1 year')),
             50:(('network', 'server'), 'data', 'comptia', 'docker', ('tcp', 'dns')),
@@ -35,9 +36,17 @@ class Scraper(threading.Thread):
         return req
 
     def get_job_data(self, link):
-        data = self.get_page_data(link)
-        data = json.loads(data)
-        return data
+        if isinstance(link, str):
+            data = self.get_page_data(link)
+            data = json.loads(data)
+            return data
+        else:
+            job_data = []
+            for l in link:
+                data = self.get_page_data(l)
+                data = json.loads(data)
+                job_data.append(data)
+            return job_data
 
     def refine_job_ad_data(self):
         pass
@@ -153,13 +162,13 @@ class Scraper(threading.Thread):
         self.running = True
         while self.running:
             self.time_to_scrape_event.wait()
-            links = self.build_request_link(['python', 'linux'])
+            links = self.build_request_link(self.search_keywords)
             # try:
             #     no_of_ads = self.get_number_of_ads(self.get_job_data(link))
             #     link = self.build_request_link(['python'], no_of_ads)
             # except TypeError:
             #     pass
-            self.logger.info(f"Attempting to gather job data for {link}.")
+            self.logger.info(f"Attempting to gather job data for {links}.")
             jobs = self.get_job_data(links)
             self.logger.info(f"Refining job data....")
             ref_jobs = self.refine_job_data(jobs)
@@ -274,15 +283,16 @@ class CVScraper(Scraper):
 
     def refine_job_data(self, data):
         jobs = []
-        for job in data['searchResult']['results']:
-            job_data = {}
-            job_data['title'] = job['title']
-            job_data['company'] = job['company']
-            job_data['city'] = self.city_map[job['cities'][0]]
-            job_data['salaryFrom'], job_data['salaryTo'], job_data['salaryAvg'] = self.count_salary(job['salary'])
-            job_data['tags'] = " ".join(job['firstDepartmentName'].split())
-            job_data['url'] = self.base_link + job['url']
-            jobs.append(job_data)
+        for datum in data:
+            for job in datum['searchResult']['results']:
+                job_data = {}
+                job_data['title'] = job['title']
+                job_data['company'] = job['company']
+                job_data['city'] = self.city_map[job['cities'][0]]
+                job_data['salaryFrom'], job_data['salaryTo'], job_data['salaryAvg'] = self.count_salary(job['salary'])
+                job_data['tags'] = " ".join(job['firstDepartmentName'].split())
+                job_data['url'] = self.base_link + job['url']
+                jobs.append(job_data)
         return jobs
 
     def refine_job_ad_data(self, link):
@@ -449,22 +459,23 @@ class CVonlineScraper(Scraper):
 
     def refine_job_data(self, data):
         jobs = []
-        for job in data["vacancies"]:
-            job_data = {}
-            job_data['title'] = job['positionTitle']
-            job_data['company'] = job['employerName']
-            job_data['city'] = self.city_map.get(job['townId'])
-            tags = job['keywords']
-            if tags: job_data['tags'] = " ".join(tags)
-            job_data['salaryFrom'] = job['salaryFrom']
-            job_data['salaryTo'] = job['salaryTo']
-            if not job_data['salaryTo']: job_data['salaryTo'] = 0
-            if job_data['salaryFrom'] and job_data['salaryTo']:
-                job_data['salaryAvg'] = (job_data['salaryFrom'] + job_data['salaryTo']) / 2
-            else:
-                job_data['salaryAvg'] = 0
-            job_data['url'] = self.base_link + '/lt/vacancy/' + str(job['id'])
-            jobs.append(job_data)
+        for datum in data:
+            for job in datum["vacancies"]:
+                job_data = {}
+                job_data['title'] = job['positionTitle']
+                job_data['company'] = job['employerName']
+                job_data['city'] = self.city_map.get(job['townId'])
+                tags = job['keywords']
+                if tags: job_data['tags'] = " ".join(tags)
+                job_data['salaryFrom'] = job['salaryFrom']
+                job_data['salaryTo'] = job['salaryTo']
+                if not job_data['salaryTo']: job_data['salaryTo'] = 0
+                if job_data['salaryFrom'] and job_data['salaryTo']:
+                    job_data['salaryAvg'] = (job_data['salaryFrom'] + job_data['salaryTo']) / 2
+                else:
+                    job_data['salaryAvg'] = 0
+                job_data['url'] = self.base_link + '/lt/vacancy/' + str(job['id'])
+                jobs.append(job_data)
         return jobs
 
     def refine_job_ad_data(self, link):
