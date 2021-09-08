@@ -3,6 +3,7 @@
 import requests
 import json
 import threading
+import traceback
 from bs4 import BeautifulSoup
 from datetime import datetime
 from locator import Locator
@@ -13,7 +14,7 @@ class Scraper(threading.Thread):
 
     def __init__(self, db, locator):
         super().__init__()
-        self.search_keywords = ['python', 'linux', 'data', 'server']
+        self.search_keywords = ['python', 'linux', 'server', 'postgres']
         self.description_keyword_map = {
             100:(('python'), ('linux', 'unix'), ('junior'), ('1-2 years', '2 years', '1 year')),
             50:(('network', 'server'), 'data', 'comptia', 'docker', ('tcp', 'dns')),
@@ -28,6 +29,8 @@ class Scraper(threading.Thread):
         self.running = False
         self.db = db
         self.locator = locator
+        self.failure_count = 0
+        self.threads = []
 
     def get_page_data(self, link):
         self.logger.info(f"Requesting link: {link}")
@@ -59,8 +62,11 @@ class Scraper(threading.Thread):
         for keyword in keywords:
             link = self.base_search_link + self.key_word_req + keyword + self.page_size_req + '1'
             no_of_jobs = str(self.get_number_of_ads(self.get_job_data(link)))
-            request_link = self.base_search_link + self.key_word_req + keyword + self.page_size_req + no_of_jobs
-            links.append(request_link)
+            if int(no_of_jobs) < 100:
+                request_link = self.base_search_link + self.key_word_req + keyword + self.page_size_req + no_of_jobs
+                links.append(request_link)
+            else:
+                self.logger.error(f"To many job offers ({no_of_jobs} !!!) in the request {link}")
         return links
 
     def get_number_of_ads(self, page, f_class, s_class):
@@ -140,18 +146,34 @@ class Scraper(threading.Thread):
         self.db.queue.put(('job_listings', data))
 
     def scrape_and_insert(self, job):
-        self.logger.info(f"Collecting data for new job {job['url']}.")
-        job_ad_data = self.refine_job_ad_data(job['url'])
-        job.update(job_ad_data)
-        self.logger.info(f"\n\nGathered job info - {job}\n\n")
-        self.insert_job_to_database(job)
+        try:
+            self.logger.info(f"Collecting data for new job {job['url']}.")
+            job_ad_data = self.refine_job_ad_data(job['url'])
+            job.update(job_ad_data)
+            self.logger.info(f"\n\nGathered job info - {job}\n\n")
+            self.insert_job_to_database(job)
+        except Exception:
+            self.failure_count += 1
+            self.logger.error(f"Unknown error occurred in {self.name}. Failure count {self.failure_count}.\n{traceback.format_exc()}\n")
+            if self.failure_count > 4:
+                self.finished_scraping.set()
+                self.running = False
+                self.logger.error(f"Failure count exceeded. Stopping {self.name}...")
 
     def scrap_and_update(self, job):
-        self.logger.info(f"Collecting data to update job info {job['url']}")
-        job_ad_data = self.refine_job_ad_data(job['url'])
-        job.update(job_ad_data)
-        self.logger.info(f"\n\nGathered job info - {job}\n\n")
-        self.update_job_in_database(jobs)
+        try:
+            self.logger.info(f"Collecting data to update job info {job['url']}")
+            job_ad_data = self.refine_job_ad_data(job['url'])
+            job.update(job_ad_data)
+            self.logger.info(f"\n\nGathered job info - {job}\n\n")
+            self.update_job_in_database(jobs)
+        except Exception:
+            self.failure_count += 1
+            self.logger.error(f"Unknown error occurred in {self.name}. Failure count {self.failure_count}.\n{traceback.format_exc()}\n")
+            if self.failure_count > 4:
+                self.finished_scraping.set()
+                self.running = False
+                self.logger.error(f"Failure count exceeded. Stopping {self.name}...")
 
     def get_existing_job_listing_url(self):
         req = f"SELECT url, entered<(now() - '2 Weeks'::interval) FROM job_listings WHERE url LIKE '{self.base_link}%';"
@@ -160,14 +182,10 @@ class Scraper(threading.Thread):
 
     def run(self):
         self.running = True
+        failure_count = 0
         while self.running:
             self.time_to_scrape_event.wait()
             links = self.build_request_link(self.search_keywords)
-            # try:
-            #     no_of_ads = self.get_number_of_ads(self.get_job_data(link))
-            #     link = self.build_request_link(['python'], no_of_ads)
-            # except TypeError:
-            #     pass
             self.logger.info(f"Attempting to gather job data for {links}.")
             jobs = self.get_job_data(links)
             self.logger.info(f"Refining job data....")
@@ -186,20 +204,18 @@ class Scraper(threading.Thread):
             self.logger.info(f"{len(duplicate_jobs)} duplicate ads found and {len(update_jobs)} to be updated...")
             ref_jobs = [job for job in ref_jobs if job not in duplicate_jobs]
             self.logger.info(f"{len(ref_jobs)} will be attempted to be scraped.")
-            threads = []
             for job in ref_jobs:
                 t = threading.Thread(target=self.scrape_and_insert, args=[job])
                 t.start()
-                threads.append(t)
-            for t in threads:
+                self.threads.append(t)
+            for t in self.threads:
                 t.join()
             self.logger.info(f"{len(update_jobs)} will be attempted to be updated.")
-            threads = []
             for job in update_jobs:
                 t = threading.Thread(target=self.scrape_and_update, args=[job])
                 t.start()
-                threads.append(t)
-            for t in threads:
+                self.threads.append(t)
+            for t in self.threads:
                 t.join()
             self.time_to_scrape_event.clear()
             self.finished_scraping.set()
@@ -209,11 +225,12 @@ class CVScraper(Scraper):
 
     def __init__(self, db, locator):
         super().__init__(db, locator)
+        self.name = 'CV.lt'
         self.base_link = "https://www.cv.lt"
         self.base_search_link = "https://www.cv.lt/smvc/board/list/get?desired=false&handicapped=false&page=1&remote=false&sortField=ORDER_TIME"
         self.page_size_req = "&pageSize="
         self.key_word_req = "&texts="
-        self.logger = Logger('CV.lt')
+        self.logger = Logger(self.name)
         self.city_map = {
             1010: 'Vilnius',
             1020: 'Kaunas',
@@ -360,13 +377,14 @@ class CVbankasScraper(Scraper):
 
     def __init__(self, db, locator):
         super().__init__(db, locator)
+        self.name = 'cvbankas.lt'
         self.base_link = "https://www.cvbankas.lt"
         self.base_search_link = "https://www.cvbankas.lt/?"
         self.key_word_req = "&keyw="
         self.no_of_pages_req = "&page="
         self.page_line_f_class = "pages_ul_inner"
         self.page_line_s_class = "a"
-        self.logger = Logger('cvbankas.lt')
+        self.logger = Logger(self.name)
 
     def build_request_link(self, keywords, no_of_pages=1):
         links = []
@@ -417,16 +435,22 @@ class CVbankasScraper(Scraper):
             job_data['salaryType'] = self.gross_or_net(salType_str)
         except AttributeError:
             job_data['salaryType'] = None
-        city = str(soup.find(itemprop="addressLocality").text)
-        if "home" in city:
+        try:
+            city = str(soup.find(itemprop="addressLocality").text)
+            if "home" in city:
+                job_data['city'] = None
+                job_data['remote'] = True
+            else:
+                job_data['city'] = city
+        except AttributeError:
+            city = None
             job_data['city'] = None
-            job_data['remote'] = True
-        else:
-            job_data['city'] = city
         try:
             job_data['link'] = str(soup.find(id="jobad_company_description").a['href'])
         except TypeError:
             job_data['link'] = None
+        except AttributeError as e:
+            self.logger.error(f"Error while finding company link: {e} Link: {link}")
         try:
             job_data['address'] = str(soup.find(class_="partners_company_info_additional_info_location_url").text).strip()
         except AttributeError:
@@ -442,11 +466,12 @@ class CVonlineScraper(Scraper):
 
     def __init__(self, db, locator):
         super().__init__(db, locator)
+        self.name = 'cvonline.lt'
         self.base_link = "https://www.cvonline.lt"
         self.base_search_link = "https://www.cvonline.lt/api/v1/vacancies-service/search?&offset=0&isHourlySalary=false&isRemoteWork=false&lang=lt"
         self.page_size_req = "&limit="
         self.key_word_req = "&keywords[]="
-        self.logger = Logger('cvonline.lt')
+        self.logger = Logger(self.name)
         self.city_map = {
             540: 'Vilnius',
             501: 'Kaunas',
@@ -515,11 +540,12 @@ class CVmarketScraper(Scraper):
 
     def __init__(self, db, locator):
         super().__init__(db, locator)
+        self.name = 'cvmarket.lt'
         self.base_link = "https://www.cvmarket.lt"
         self.base_search_link = "https://www.cvmarket.lt/joboffers.php?_track=index_click_job_search&op=search&search_location=landingpage&ga_track=homepage"
         self.key_word_req = "&search[keyword]="
         self.no_of_pages_req = "&start="
-        self.logger = Logger('cvmarket.lt')
+        self.logger = Logger(self.name)
 
     def get_number_of_ads(self, page):
         soup = BeautifulSoup(page, 'lxml')
@@ -591,13 +617,14 @@ class GeraPraktikaScraper(Scraper):
 
     def __init__(self, db, locator):
         super().__init__(db, locator)
+        self.name = 'gerapraktika.lt'
         self.base_link = "https://www.gerapraktika.lt"
         self.base_search_link = "https://www.gerapraktika.lt/praktikos-skelbimai/p0?"
         self.key_word_req = ";title="
         self.no_of_pages_req = "/p"
         self.page_line_f_class = "pager"
         self.page_line_s_class = "invisible_pager_button"
-        self.logger = Logger('gerapraktika.lt')
+        self.logger = Logger(self.name)
 
     def build_request_link(self, keywords, no_of_pages=1):
         links = []
