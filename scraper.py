@@ -45,18 +45,19 @@ class Scraper(threading.Thread):
     def refine_job_data(self):
         pass
 
-    def build_request_link(self, key_words, no_of_jobs=1):
-        request_link = self.base_search_link
-        for key_word in key_words:
-            request_link += self.key_word_req + key_word
-        request_link += self.page_size_req + str(no_of_jobs)
-        return request_link
+    def build_request_link(self, keywords, no_of_jobs=1):
+        links = []
+        for keyword in keywords:
+            link = self.base_search_link + self.key_word_req + keyword + self.page_size_req + '1'
+            no_of_jobs = str(self.get_number_of_ads(self.get_job_data(link)))
+            request_link = self.base_search_link + self.key_word_req + keyword + self.page_size_req + no_of_jobs
+            links.append(request_link)
+        return links
 
     def get_number_of_ads(self, page, f_class, s_class):
         soup = BeautifulSoup(page, 'lxml')
         try:
-
-            no_of_pages = int(soup.find(class_=f_class).find_all(class_=s_class)[-1].text)
+            no_of_pages = int(soup.find(class_=f_class).find_all(s_class)[-1].text)
         except AttributeError:
             no_of_pages = 1
         return no_of_pages
@@ -152,14 +153,14 @@ class Scraper(threading.Thread):
         self.running = True
         while self.running:
             self.time_to_scrape_event.wait()
-            link = self.build_request_link(['python'])
-            try:
-                no_of_ads = self.get_number_of_ads(self.get_job_data(link))
-                link = self.build_request_link(['python'], no_of_ads)
-            except TypeError:
-                pass
+            links = self.build_request_link(['python', 'linux'])
+            # try:
+            #     no_of_ads = self.get_number_of_ads(self.get_job_data(link))
+            #     link = self.build_request_link(['python'], no_of_ads)
+            # except TypeError:
+            #     pass
             self.logger.info(f"Attempting to gather job data for {link}.")
-            jobs = self.get_job_data(link)
+            jobs = self.get_job_data(links)
             self.logger.info(f"Refining job data....")
             ref_jobs = self.refine_job_data(jobs)
             self.logger.info(f"Attempting to gather job ad data...")
@@ -361,6 +362,7 @@ class CVbankasScraper(Scraper):
         links = []
         for keyword in keywords:
             link = self.base_search_link + self.key_word_req + keyword
+            print(link)
             links.append(link)
             no_of_pages = self.get_number_of_ads(self.get_page_data(link), self.page_line_f_class, self.page_line_s_class)
             for i in range (2, no_of_pages + 1):
