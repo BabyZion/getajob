@@ -66,14 +66,18 @@ class Scoreboard(threading.Thread):
         return t_time
 
     def __periodic_daily_info(self, get_info=True):
-        self.todays_best_list = self.todays_best()
+        if get_info:
+            self.todays_best_list = self.todays_best()
+            self.logger.info(f"Todays best offers:\n\n{self.__print_pretty(self.todays_best_list)}")
         date_to_provide_info = self.__get_info_date()
         time_to_info = (date_to_provide_info - datetime.now()).total_seconds()
         self.logger.info(f"Next daily info is scheduled to be at {datetime.strftime(date_to_provide_info, '%Y-%m-%d %H:%M:%S')}")
         threading.Timer(time_to_info, self.__periodic_daily_info)
 
     def __periodic_weekly_info(self, get_info=True):
-        self.top_offers_list = self.top_offers()
+        if get_info:
+            self.top_offers_list = self.top_offers()
+            self.logger.info(f"Best offers so far:\n\n{self.__print_pretty(self.top_offers_list)}")
         date_to_provide_info = self.__get_info_date(days=7)
         time_to_info = (date_to_provide_info - datetime.now()).total_seconds()
         self.logger.info(f"Next weekly info is scheduled to be at {datetime.strftime(date_to_provide_info, '%Y-%m-%d %H:%M:%S')}")
@@ -91,8 +95,8 @@ class Scoreboard(threading.Thread):
         return p_string
 
     def run(self):
-        self.__periodic_daily_info(get_info=False)
-        self.__periodic_weekly_info(get_info=False)
+        self.__periodic_daily_info(get_info=True)
+        self.__periodic_weekly_info(get_info=True)
         self.running = True
         while self.running:
             self.info_event.wait()
