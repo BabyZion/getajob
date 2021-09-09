@@ -95,8 +95,8 @@ class Scoreboard(threading.Thread):
         return p_string
 
     def run(self):
-        self.__periodic_daily_info(get_info=True)
-        self.__periodic_weekly_info(get_info=True)
+        self.__periodic_daily_info(get_info=False)
+        self.__periodic_weekly_info(get_info=False)
         self.running = True
         while self.running:
             self.info_event.wait()
