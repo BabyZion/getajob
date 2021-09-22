@@ -160,7 +160,7 @@ class Scraper(threading.Thread):
                 self.running = False
                 self.logger.error(f"Failure count exceeded. Stopping {self.name}...")
 
-    def scrap_and_update(self, job):
+    def scrape_and_update(self, job):
         try:
             self.logger.info(f"Collecting data to update job info {job['url']}")
             job_ad_data = self.refine_job_ad_data(job['url'])
