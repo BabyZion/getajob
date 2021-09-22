@@ -166,7 +166,7 @@ class Scraper(threading.Thread):
             job_ad_data = self.refine_job_ad_data(job['url'])
             job.update(job_ad_data)
             self.logger.info(f"\n\nGathered job info - {job}\n\n")
-            self.update_job_in_database(jobs)
+            self.update_job_in_database(job)
         except Exception:
             self.failure_count += 1
             self.logger.error(f"Unknown error occurred in {self.name}. Failure count {self.failure_count}.\n{traceback.format_exc()}\n")
