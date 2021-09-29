@@ -309,6 +309,9 @@ class CVScraper(Scraper):
                 job_data['salaryFrom'], job_data['salaryTo'], job_data['salaryAvg'] = self.count_salary(job['salary'])
                 job_data['tags'] = " ".join(job['firstDepartmentName'].split())
                 job_data['url'] = self.base_link + job['url']
+                if job_data['salaryFrom'] is None: job_data['salaryFrom'] = 0
+                if job_data['salaryTo'] is None: job_data['salaryTo'] = 0
+                if job_data['salaryAvg'] is None: job_data['salaryAvg'] = 0
                 jobs.append(job_data)
         return jobs
 
@@ -423,6 +426,9 @@ class CVbankasScraper(Scraper):
             except AttributeError:
                 job_data['salaryFrom'] = job_data['salaryTo'] = job_data['salaryAvg'] = 0
             job_data['url'] = job['href']
+            if job_data['salaryFrom'] is None: job_data['salaryFrom'] = 0
+            if job_data['salaryTo'] is None: job_data['salaryTo'] = 0
+            if job_data['salaryAvg'] is None: job_data['salaryAvg'] = 0
             jobs.append(job_data)
         return jobs
 
@@ -500,6 +506,9 @@ class CVonlineScraper(Scraper):
                 else:
                     job_data['salaryAvg'] = 0
                 job_data['url'] = self.base_link + '/lt/vacancy/' + str(job['id'])
+                if job_data['salaryFrom'] is None: job_data['salaryFrom'] = 0
+                if job_data['salaryTo'] is None: job_data['salaryTo'] = 0
+                if job_data['salaryAvg'] is None: job_data['salaryAvg'] = 0
                 jobs.append(job_data)
         return jobs
 
@@ -589,6 +598,9 @@ class CVmarketScraper(Scraper):
             except AttributeError:
                 job_data['salaryFrom'] = job_data['salaryTo'] = job_data['salaryAvg'] = 0
             job_data['url'] = self.base_link + job.find(class_="f_job_title main_job_link limited-lines")['href']
+            if job_data['salaryFrom'] is None: job_data['salaryFrom'] = 0
+            if job_data['salaryTo'] is None: job_data['salaryTo'] = 0
+            if job_data['salaryAvg'] is None: job_data['salaryAvg'] = 0
             jobs.append(job_data)
         return jobs
 
@@ -659,6 +671,9 @@ class GeraPraktikaScraper(Scraper):
             except AttributeError:
                 job_data['tags'] = None
             job_data['salaryFrom'] = job_data['salaryTo'] = job_data['salaryAvg'] = 0
+            if job_data['salaryFrom'] is None: job_data['salaryFrom'] = 0
+            if job_data['salaryTo'] is None: job_data['salaryTo'] = 0
+            if job_data['salaryAvg'] is None: job_data['salaryAvg'] = 0
             job_data['url'] = self.base_link + job.find(class_="company_title")['href']
             jobs.append(job_data)
         return jobs
