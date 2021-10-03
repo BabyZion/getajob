@@ -347,7 +347,8 @@ class CVScraper(Scraper):
                 for k_word in address_k_words:
                     if k_word in detail_h6:
                         address = str(detail.p).replace("<p>", "").replace("</p>", "")
-                        job_data['address'] = address.strip()
+                        if address is not None or address != '':
+                            job_data['address'] = address.strip()
                         break
                 for k_word in link_k_words:
                     if k_word in detail_h6:
@@ -393,7 +394,7 @@ class CVbankasScraper(Scraper):
         links = []
         for keyword in keywords:
             link = self.base_search_link + self.key_word_req + keyword
-            print(link)
+            self.logger.info(link)
             links.append(link)
             no_of_pages = self.get_number_of_ads(self.get_page_data(link), self.page_line_f_class, self.page_line_s_class)
             for i in range (2, no_of_pages + 1):
@@ -460,7 +461,7 @@ class CVbankasScraper(Scraper):
         try:
             job_data['address'] = str(soup.find(class_="partners_company_info_additional_info_location_url").text).strip()
         except AttributeError:
-            job_data['address'] = None
+            pass
         description = str(soup.find(itemprop="description"))
         job_data['description_score'] = self.calculate_job_description_score(description)
         job_data['distance_score'] = self.calculate_distance_score(job_data.get('address'))
@@ -529,8 +530,6 @@ class CVonlineScraper(Scraper):
         address = soup['props']['initialReduxState']['publicVacancies'][id_]['highlights']['address']
         if address:
             job_data['address'] = str(address).strip()
-        else:
-            job_data['address'] = None
         job_data['link'] = soup['props']['initialReduxState']['publicVacancies'][id_]['employer']['webpageUrl']
         skills_data = soup['props']['initialReduxState']['publicVacancies'][id_]['skills']
         description = ''
@@ -683,7 +682,9 @@ class GeraPraktikaScraper(Scraper):
         soup = BeautifulSoup(req, 'lxml')
         description = soup.find(class_="content job-description")
         job_data = {}
-        job_data['address'] = str(soup.find(class_="box_info").find_all('div')[1].text).strip()
+        address = str(soup.find(class_="box_info").find_all('div')[1].text).strip()
+        if address:
+            job_data['address'] = address
         job_data['email'] = str(soup.find(class_="box_info").find_all('div')[2].text)
         phone_no_str = str(soup.find(class_="box_info").find_all('div')[3].text)
         job_data['phone_no'] = "".join(filter(str.isdigit, phone_no_str))

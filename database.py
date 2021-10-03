@@ -71,7 +71,7 @@ class Database(threading.Thread):
                 self.cursor.execute(insert_que, (psycopg2.extensions.AsIs(','.join(columns)), tuple(values)))
                 self.connection.commit()
             except (psycopg2.OperationalError, TypeError) as e:
-                self.logger.error(f"Unable to add data to database - {e}")
+                self.logger.error(f"Unable to add data to database - {traceback.format_exc()}")
                 self.cursor.execute("ROLLBACK")
                 self.connection.commit()
             except psycopg2.errors.UniqueViolation as e:
@@ -79,7 +79,7 @@ class Database(threading.Thread):
                 self.cursor.execute("ROLLBACK")
                 self.connection.commit()
             except (psycopg2.errors.NumericValueOutOfRange, psycopg2.errors.ForeignKeyViolation) as e:
-                self.logger.error(f"Unable to add data to database - {e}")
+                self.logger.error(f"Unable to add data to database - {traceback.format_exc()}")
                 self.cursor.execute("ROLLBACK")
                 self.connection.commit()
 
@@ -111,15 +111,15 @@ class Database(threading.Thread):
                     else:
                         self.connection.commit()
                 except psycopg2.OperationalError as e:
-                    self.logger.error(f"Unable to execute the request - {e}")
+                    self.logger.error(f"Unable to execute the request - {traceback.format_exc()}")
                     self.cursor.execute("ROLLBACK")
                     self.connection.commit()
                 except psycopg2.ProgrammingError as e:
-                    self.logger.error(f"Unable to execute the request - {e}")
+                    self.logger.error(f"Unable to execute the request - {traceback.format_exc()}")
                     self.cursor.execute("ROLLBACK")
                     self.connection.commit()
                 except psycopg2.errors.InFailedSqlTransaction as e:
-                    self.logger.error(f"Unable to execute the request - {e}")
+                    self.logger.error(f"Unable to execute the request - {traceback.format_exc()}")
                     self.cursor.execute("ROLLBACK")
                     self.connection.commit()
 
@@ -133,15 +133,18 @@ class Database(threading.Thread):
     def run(self):
         self.running = True
         self.connect()
-        while self.running:
-            table, data = self.queue.get()
-            if data:
-                if table == 'job_listings':
-                    if data.get('entered'):
+        try:
+            while self.running:
+                table, data = self.queue.get()
+                if data:
+                    if table == 'job_listings':
+                        if data.get('entered'):
+                            self.insert_into(table, data)
+                            self.logger.info(f"Data inserted for table {table}")
+                        elif data.get('updated'):
+                            self.update_row(table, 'url', data)
+                    else:
                         self.insert_into(table, data)
                         self.logger.info(f"Data inserted for table {table}")
-                    elif data.get('updated'):
-                        self.update_row(table, 'url', data)
-                else:
-                    self.insert_into(table, data)
-                    self.logger.info(f"Data inserted for table {table}")
+        except Exception:
+            self.logger.error(f"UNKNOWN DATABASE ERROR OCCURRED:\n{traceback.format_exc()}\nDATA: {data}")
